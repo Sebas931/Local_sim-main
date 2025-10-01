@@ -68,9 +68,16 @@ async def init():
             session.add_all(modules)
             await session.flush()
 
-        # Gestionar roles (actualizar o crear)
+        # Gestionar roles (eliminar y recrear para evitar problemas de async)
         result = await session.execute(select(Role))
-        existing_roles = {role.name: role for role in result.scalars().all()}
+        existing_roles = list(result.scalars().all())
+
+        # Eliminar roles existentes para recrearlos con los módulos correctos
+        for role in existing_roles:
+            await session.delete(role)
+            print(f"  🔄 Eliminando rol existente: {role.name}")
+
+        await session.flush()
 
         # Configuración de roles
         roles_config = {
@@ -81,20 +88,13 @@ async def init():
             "Supervisor": [m for m in modules if m.name != "Usuarios"]  # Todos excepto Usuarios
         }
 
+        # Crear roles con sus módulos
         roles_dict = {}
         for role_name, role_modules in roles_config.items():
-            if role_name in existing_roles:
-                # Actualizar módulos del rol existente
-                role = existing_roles[role_name]
-                role.modules = role_modules
-                print(f"  ✅ Actualizado rol: {role_name}")
-            else:
-                # Crear nuevo rol
-                role = Role(name=role_name, modules=role_modules)
-                session.add(role)
-                print(f"  ✅ Creado rol: {role_name}")
-
+            role = Role(name=role_name, modules=role_modules)
+            session.add(role)
             roles_dict[role_name] = role
+            print(f"  ✅ Creado rol: {role_name} con {len(role_modules)} módulos")
 
         await session.flush()
 
