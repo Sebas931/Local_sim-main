@@ -26,6 +26,7 @@ const ProductsManagement = () => {
   // Package selection
   const [selectedPackageBulkId, setSelectedPackageBulkId] = useState('');
   const [selectedPackageSingleId, setSelectedPackageSingleId] = useState('');
+  const [selectedOperador, setSelectedOperador] = useState('1');
 
   // Individual recharge
   const [msisdnToTopup, setMsisdnToTopup] = useState('');
@@ -173,8 +174,9 @@ const ProductsManagement = () => {
             <div className="col-span-1">
               <Label className="mb-1 block">Operador</Label>
               <Select
-                defaultValue="1"
+                value={selectedOperador}
                 onValueChange={(v) => {
+                  setSelectedOperador(v);
                   const id = Number(v) || 0; // 0=Todos, 1=Claro, 2=Movistar, 3=Tigo
                   // Limpia ambos selects para que sean independientes
                   setSelectedPackageBulkId("");
