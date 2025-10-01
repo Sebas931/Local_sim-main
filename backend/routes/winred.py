@@ -211,7 +211,14 @@ class WinredClient:
 
         hj = json.dumps(header_for_signature, separators=(",", ":"), ensure_ascii=False)
         dj = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
-        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
+
+        # Intento: querypackages sin API_KEY al final
+        if svc_lower in ("querypackages",):
+            message_to_sign = f"{hj}{dj}"
+        else:
+            message_to_sign = f"{hj}{dj}{WINRED_API_KEY}"
+
+        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, message_to_sign)
 
         body_str = json.dumps(
             {"header": header_full, "data": ordered_data, "signature": signature},
@@ -223,7 +230,7 @@ class WinredClient:
             print(f"🔍 DEBUG querypackages:")
             print(f"   header_for_signature: {hj}")
             print(f"   data: {dj}")
-            print(f"   concat: {hj}{dj}{WINRED_API_KEY[:10]}...")
+            print(f"   message_to_sign: {message_to_sign[:100]}...")
             print(f"   signature: {signature}")
 
         url = f"{self.base_url}/{service.strip('/')}"
