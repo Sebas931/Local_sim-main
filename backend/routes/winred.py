@@ -56,8 +56,10 @@ def _compact_json(obj: Any) -> str:
     return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
 
 def _now_reqdate() -> str:
-    base = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"{base}.000" if WINRED_MS not in ("0", "false", "no") else base
+    return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".000"
+
+def _compact_json(obj):
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
 
 def _filter_allowed_packages_in_resp(resp: dict) -> dict:
     try:
@@ -146,12 +148,13 @@ class WinredClient:
         string2hash = f"{WINRED_USER_ID}{request_id}{request_date}{WINRED_API_KEY}"
         hash_key = _b64_hmac_sha256(WINRED_SECRET_KEY, string2hash)
 
-        header = {}
-        header["api_version"] = WINRED_API_VERSION
-        header["api_key"]     = WINRED_API_KEY
-        header["request_id"]  = request_id
-        header["hash_key"]    = hash_key
-        header["request_date"]= request_date
+        header = {
+        "api_version": WINRED_API_VERSION,
+        "api_key": WINRED_API_KEY,
+        "request_id": request_id,
+        "hash_key": hash_key,
+        "request_date": request_date,
+        }
         return header
 
     def _payload_json_body(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,58 +183,45 @@ class WinredClient:
         Body: {"header","data","signature"}
         signature = b64(HMAC_SHA256(json(header)+json(data)+API_KEY, SECRET))
         - Orden header: api_version, api_key, request_id, hash_key, request_date
-        - Orden data (topup): product_id, amount, suscriber, sell_from
+        - Orden data (topup/paquetes): product_id, amount, suscriber, sell_from
         (para querytx: solo {"suscriber": "..."}).
         """
         _must_have_creds()
         auth = aiohttp.BasicAuth(WINRED_BASIC_USER, WINRED_BASIC_PASS)
+        header = self.build_header_for_body()
 
-        # Usa SIEMPRE el builder fiel al PHP (mismo orden, misma fecha .000)
-        header_full = self.build_header_for_body()
+        svc = service.lower()
 
-        # Intento: querypackages usa header completo CON hash_key (como topup)
-        svc_lower = service.lower()
-        header_for_signature = header_full
-
-        # Normaliza y fuerza orden de data
-        if set(data.keys()) == {"suscriber"}:
-            # querytx: solo suscriber
+        if set(data.keys()) == {"suscriber"} and svc == "querytx":
             ordered_data = {"suscriber": _as_str(data["suscriber"])}
-        elif svc_lower in ("querypackages",) and set(data.keys()) == {"product_id"}:
-            # querypackages: solo product_id (SIN campos vacíos)
-            ordered_data = {"product_id": _as_str(data["product_id"])}
         else:
-            # topup: todos los campos
+            # 👇 SIEMPRE 4 claves, como en tu versión funcional (aunque vayan vacías)
             ordered_data = {
                 "product_id": _as_str(data.get("product_id", "")),
                 "amount":     _as_str(data.get("amount", "")),
-                "suscriber":  _as_str(data.get("suscriber", "")),  # (sic)
+                "suscriber":  _as_str(data.get("suscriber", "")),
                 "sell_from":  _as_str(data.get("sell_from", "S")),
             }
 
-        hj = json.dumps(header_for_signature, separators=(",", ":"), ensure_ascii=False)
-        dj = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
+        hj = json.dumps(header,      separators=(",", ":"), ensure_ascii=False)
+        dj = json.dumps(ordered_data,separators=(",", ":"), ensure_ascii=False)
 
-        # Intento: querypackages sin API_KEY al final
-        if svc_lower in ("querypackages",):
-            message_to_sign = f"{hj}{dj}"
-        else:
-            message_to_sign = f"{hj}{dj}{WINRED_API_KEY}"
-
+        # 👇 SIEMPRE con API_KEY al final (incluido querypackages)
+        message_to_sign = f"{hj}{dj}{WINRED_API_KEY}"
         signature = _b64_hmac_sha256(WINRED_SECRET_KEY, message_to_sign)
 
+        # Debug útil
+        if svc in ("querypackages", "topup", "querytx"):
+            print("🔍 DEBUG", service)
+            print("   header_for_signature:", hj)
+            print("   data:", dj)
+            print("   concat:", f"{hj}{dj}{WINRED_API_KEY}"[:160], "...")
+            print("   signature:", signature)
+
         body_str = json.dumps(
-            {"header": header_full, "data": ordered_data, "signature": signature},
+            {"header": header, "data": ordered_data, "signature": signature},
             separators=(",", ":"), ensure_ascii=False
         )
-
-        # Debug log para querypackages
-        if svc_lower in ("querypackages",):
-            print(f"🔍 DEBUG querypackages:")
-            print(f"   header_for_signature: {hj}")
-            print(f"   data: {dj}")
-            print(f"   message_to_sign: {message_to_sign[:100]}...")
-            print(f"   signature: {signature}")
 
         url = f"{self.base_url}/{service.strip('/')}"
         headers = {"Accept": "text/plain", "Content-Type": "text/plain"}
@@ -247,9 +237,10 @@ class WinredClient:
                         raise HTTPException(status_code=502, detail=f"Respuesta no JSON de Winred: {text[:200]}")
                     resp["__mode"] = "php-text/plain-body"
                     resp["__route"] = service
-                    resp["__req_id"] = header_full["request_id"]
+                    resp["__req_id"] = header["request_id"]
                     return resp
                 raise HTTPException(status_code=502, detail=f"Winred HTTP {r.status}: {text}")
+
 
 
     # -------- paquetes (tu flujo original que ya funciona) ----------
@@ -385,14 +376,18 @@ async def get_packages(product_parent_id: int = Query(1, ge=0, description="0=to
         last_err = None
         for svc in ("querypackages", "queryPackages"):
             try:
-                raw = await winred.post_textplain_body(svc, data)
+                raw = await winred.post_textplain_body(svc, {
+                    "product_id": str(product_parent_id),
+                    "amount": "",
+                    "suscriber": "",
+                    "sell_from": "S",
+                })
                 resp = _filter_allowed_packages_in_resp(raw)
                 break
             except Exception as e_txt:
                 last_err = e_txt
                 continue
         else:
-            # si no rompió el bucle, fallaron ambas rutas
             raise HTTPException(status_code=502, detail=f"No se pudieron obtener paquetes (text/plain): {last_err}")
 
     # Post-proceso y orden, igual que antes
