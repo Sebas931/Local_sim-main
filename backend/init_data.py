@@ -68,16 +68,8 @@ async def init():
             session.add_all(modules)
             await session.flush()
 
-        # Gestionar roles (eliminar y recrear para evitar problemas de async)
-        result = await session.execute(select(Role))
-        existing_roles = list(result.scalars().all())
-
-        # Eliminar roles existentes para recrearlos con los módulos correctos
-        for role in existing_roles:
-            await session.delete(role)
-            print(f"  🔄 Eliminando rol existente: {role.name}")
-
-        await session.flush()
+        # Gestionar roles - actualizar usando la tabla intermedia role_modules
+        from sqlalchemy import delete
 
         # Configuración de roles
         roles_config = {
@@ -88,13 +80,32 @@ async def init():
             "Supervisor": [m for m in modules if m.name != "Usuarios"]  # Todos excepto Usuarios
         }
 
-        # Crear roles con sus módulos
         roles_dict = {}
+
         for role_name, role_modules in roles_config.items():
-            role = Role(name=role_name, modules=role_modules)
-            session.add(role)
+            # Buscar si el rol ya existe
+            result = await session.execute(select(Role).where(Role.name == role_name))
+            role = result.scalar_one_or_none()
+
+            if role:
+                # Eliminar todas las asociaciones existentes de este rol
+                await session.execute(
+                    delete(RoleModule).where(RoleModule.role_id == role.id)
+                )
+
+                # Crear nuevas asociaciones
+                for module in role_modules:
+                    role_module = RoleModule(role_id=role.id, module_id=module.id)
+                    session.add(role_module)
+
+                print(f"  ✅ Actualizado rol: {role_name} con {len(role_modules)} módulos")
+            else:
+                # Crear nuevo rol con sus módulos
+                role = Role(name=role_name, modules=role_modules)
+                session.add(role)
+                print(f"  ✅ Creado rol: {role_name} con {len(role_modules)} módulos")
+
             roles_dict[role_name] = role
-            print(f"  ✅ Creado rol: {role_name} con {len(role_modules)} módulos")
 
         await session.flush()
 
