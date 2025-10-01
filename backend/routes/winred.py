@@ -253,7 +253,7 @@ class WinredClient:
 
 
     # -------- paquetes (tu flujo original que ya funciona) ----------
-    def _payload_json_mode(self, data: Dict[str, Any], include_hash: bool, sort: bool) -> Dict[str, Any]:
+    def _payload_json_mode(self, data: Dict[str, Any], include_hash: bool, sort: bool, include_apikey_suffix: bool = True) -> Dict[str, Any]:
         header = self.build_header_for_body()
         # Para el modo "paquetes" no importa el orden exacto como en PHP, pero mantenemos consistencia
         base_hdr = {
@@ -263,10 +263,18 @@ class WinredClient:
             "request_date": header["request_date"],
         }
         hdr_for_sign = {**base_hdr, "hash_key": header["hash_key"]} if include_hash else base_hdr
+
+        # Normalizar data: solo incluir campos que vienen en data (sin vacíos)
+        normalized_data = {k: _as_str(v) for k, v in data.items() if k in data}
+
         hj = json.dumps(hdr_for_sign, separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
-        dj = json.dumps(data,        separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
-        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
-        return {"header": header, "data": data, "signature": signature}
+        dj = json.dumps(normalized_data, separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
+
+        # Firma con o sin API_KEY al final
+        message_to_sign = f"{hj}{dj}{WINRED_API_KEY}" if include_apikey_suffix else f"{hj}{dj}"
+        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, message_to_sign)
+
+        return {"header": header, "data": normalized_data, "signature": signature}
 
     async def post_best(self, service: Any, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -282,8 +290,16 @@ class WinredClient:
 
         async with aiohttp.ClientSession(auth=auth, timeout=self.timeout) as session:
             for svc in services:
-                for (include_hash, sort, tag) in ((True, False, "with-hash"), (False, False, "no-hash"), (False, True, "no-hash+sorted")):
-                    payload = self._payload_json_mode(data, include_hash, sort)
+                # Prueba múltiples variantes: (include_hash, sort, include_apikey_suffix, tag)
+                for (include_hash, sort, include_apikey, tag) in (
+                    (True, False, True, "with-hash"),
+                    (False, False, True, "no-hash"),
+                    (False, True, True, "no-hash+sorted"),
+                    (True, False, False, "with-hash-noapi"),
+                    (False, False, False, "no-hash-noapi"),
+                    (False, True, False, "no-hash+sorted-noapi"),
+                ):
+                    payload = self._payload_json_mode(data, include_hash, sort, include_apikey)
                     req_id = payload["header"]["request_id"]
                     url = f"{self.base_url}/{svc.strip('/')}"
                     try:
