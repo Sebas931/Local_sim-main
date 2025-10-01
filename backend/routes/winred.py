@@ -187,16 +187,10 @@ class WinredClient:
         # Usa SIEMPRE el builder fiel al PHP (mismo orden, misma fecha .000)
         header = self.build_header_for_body()
 
-        # Normaliza y fuerza orden de data según el servicio
-        # Solo incluir campos que realmente se envían, no agregar vacíos
+        # Normaliza y fuerza orden de data
         if set(data.keys()) == {"suscriber"}:
-            # querytx: solo suscriber
             ordered_data = {"suscriber": _as_str(data["suscriber"])}
-        elif set(data.keys()) == {"product_id"}:
-            # querypackages: solo product_id
-            ordered_data = {"product_id": _as_str(data["product_id"])}
         else:
-            # topup: todos los campos en orden según doc WinRed
             ordered_data = {
                 "product_id": _as_str(data.get("product_id", "")),
                 "amount":     _as_str(data.get("amount", "")),
