@@ -1,9 +1,10 @@
 # init_data.py
 import asyncio
 from database import engine, get_async_session
-from models import Base, Role, Module, User
+from models import Base, Role, Module, User, RoleModule
 from utils.auth_utils import get_password_hash
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 async def init():
     async with engine.begin() as conn:
@@ -11,57 +12,116 @@ async def init():
 
     # Abrimos sesión
     async for session in get_async_session():
-        # Crear módulos (basados en el frontend)
-        module_names = [
-            "Dashboard",
-            "Punto de venta",
-            "Sims",
-            "Recargas",
-            "Devoluciones",
-            "Usuarios",
-            "Turnos",
-            "Inventarios Sims"
-        ]
-        modules = [Module(name=name) for name in module_names]
-        session.add_all(modules)
+        # Verificar si ya existen datos
+        result = await session.execute(select(Module))
+        existing_modules = result.scalars().all()
+
+        if existing_modules:
+            print("⚠️  Ya existen datos en la base de datos")
+            print("⚠️  Actualizando módulos...")
+
+            # Eliminar módulos antiguos que ya no existen
+            module_names_set = {
+                "Dashboard",
+                "Punto de venta",
+                "Sims",
+                "Recargas",
+                "Devoluciones",
+                "Usuarios",
+                "Turnos",
+                "Inventarios Sims"
+            }
+
+            # Eliminar módulos que ya no están en la lista
+            for mod in existing_modules:
+                if mod.name not in module_names_set:
+                    await session.delete(mod)
+                    print(f"  ❌ Eliminado módulo obsoleto: {mod.name}")
+
+            # Crear solo los módulos que no existen
+            existing_names = {mod.name for mod in existing_modules}
+            new_module_names = module_names_set - existing_names
+
+            if new_module_names:
+                new_modules = [Module(name=name) for name in new_module_names]
+                session.add_all(new_modules)
+                await session.flush()
+                print(f"  ✅ Agregados {len(new_module_names)} módulos nuevos")
+
+            # Obtener todos los módulos actualizados
+            result = await session.execute(select(Module))
+            modules = list(result.scalars().all())
+        else:
+            print("✅ Inicializando base de datos desde cero...")
+            # Crear módulos (basados en el frontend)
+            module_names = [
+                "Dashboard",
+                "Punto de venta",
+                "Sims",
+                "Recargas",
+                "Devoluciones",
+                "Usuarios",
+                "Turnos",
+                "Inventarios Sims"
+            ]
+            modules = [Module(name=name) for name in module_names]
+            session.add_all(modules)
+            await session.flush()
+
+        # Gestionar roles (actualizar o crear)
+        result = await session.execute(select(Role))
+        existing_roles = {role.name: role for role in result.scalars().all()}
+
+        # Configuración de roles
+        roles_config = {
+            "Admin": modules,  # Acceso total
+            "Vendedor": [m for m in modules if m.name in [
+                "Dashboard", "Punto de venta", "Sims", "Recargas", "Devoluciones", "Turnos"
+            ]],  # Módulos operativos
+            "Supervisor": [m for m in modules if m.name != "Usuarios"]  # Todos excepto Usuarios
+        }
+
+        roles_dict = {}
+        for role_name, role_modules in roles_config.items():
+            if role_name in existing_roles:
+                # Actualizar módulos del rol existente
+                role = existing_roles[role_name]
+                role.modules = role_modules
+                print(f"  ✅ Actualizado rol: {role_name}")
+            else:
+                # Crear nuevo rol
+                role = Role(name=role_name, modules=role_modules)
+                session.add(role)
+                print(f"  ✅ Creado rol: {role_name}")
+
+            roles_dict[role_name] = role
+
         await session.flush()
 
-        # Crear roles con permisos específicos
+        # Crear usuario admin si no existe
+        result = await session.execute(select(User).where(User.username == "admin"))
+        admin_user = result.scalar_one_or_none()
 
-        # Rol Admin - Acceso total
-        admin_role = Role(name="Admin", modules=modules)
-        session.add(admin_role)
-
-        # Rol Vendedor - Módulos operativos (sin Usuarios ni Inventarios)
-        vendedor_modules = [m for m in modules if m.name in [
-            "Dashboard", "Punto de venta", "Sims", "Recargas", "Devoluciones", "Turnos"
-        ]]
-        vendedor_role = Role(name="Vendedor", modules=vendedor_modules)
-        session.add(vendedor_role)
-
-        # Rol Supervisor - Todos excepto Usuarios
-        supervisor_modules = [m for m in modules if m.name != "Usuarios"]
-        supervisor_role = Role(name="Supervisor", modules=supervisor_modules)
-        session.add(supervisor_role)
-
-        await session.flush()
-
-        # Usuario admin por defecto
-        admin_user = User(
-            username="admin",
-            hashed_password=get_password_hash("admin123"),
-            full_name="Administrador",
-            email="admin@example.com",
-            role_id=admin_role.id
-        )
-        session.add(admin_user)
+        if not admin_user:
+            admin_user = User(
+                username="admin",
+                hashed_password=get_password_hash("admin123"),
+                full_name="Administrador",
+                email="admin@example.com",
+                role_id=roles_dict["Admin"].id
+            )
+            session.add(admin_user)
+            print("  ✅ Usuario admin creado - username: admin, password: admin123")
+        else:
+            # Asegurar que el admin tenga el rol Admin
+            admin_user.role_id = roles_dict["Admin"].id
+            print("  ✅ Usuario admin ya existe, rol actualizado")
 
         await session.commit()
 
-        print("✅ Base de datos inicializada correctamente")
-        print(f"✅ Módulos creados: {len(modules)}")
-        print(f"✅ Roles creados: Admin, Vendedor, Supervisor")
-        print(f"✅ Usuario admin creado - username: admin, password: admin123")
+        print("\n✅ Base de datos sincronizada correctamente")
+        print(f"✅ Módulos totales: {len(modules)}")
+        print(f"✅ Roles: {', '.join(roles_config.keys())}")
 
 if __name__ == "__main__":
     asyncio.run(init())
