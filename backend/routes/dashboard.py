@@ -90,7 +90,7 @@ async def get_dashboard_stats(
         {where_user}
         {where_rango}
     """)
-    res_pay = (await db.execute(sql_payments, params_payments)).mappings().one()
+    res_pay = (await db.execute(sql_payments, tuple(params_payments))).mappings().one()
 
     # 2) Ticket promedio - reuse same params
     params_ticket = [today0]
@@ -117,7 +117,7 @@ async def get_dashboard_stats(
         {where_user_ticket}
         {where_rango_ticket}
     """)
-    res_ticket = (await db.execute(sql_ticket, params_ticket)).mappings().one()
+    res_ticket = (await db.execute(sql_ticket, tuple(params_ticket))).mappings().one()
 
     # 3) Serie diaria continua (incluye días con 0)
     if rango_desde and rango_hasta:
@@ -160,7 +160,7 @@ async def get_dashboard_stats(
         left join agg a using(d)
         order by d
     """)
-    series_rows = (await db.execute(sql_series, sql_series_params)).mappings().all()
+    series_rows = (await db.execute(sql_series, tuple(sql_series_params))).mappings().all()
     series_por_dia = [{"fecha": r["fecha"].isoformat(), "total": float(r["total"])} for r in series_rows]
 
     # 4) SIMs (global)
@@ -205,7 +205,7 @@ async def get_dashboard_stats(
           and m.fecha >= $1
         group by m.metodo_pago
     """)
-    res_hoy_met = (await db.execute(sql_hoy_metodo, [today0])).mappings().all()
+    res_hoy_met = (await db.execute(sql_hoy_metodo, (today0,))).mappings().all()
     ventas_hoy_por_metodo = {r["metodo_pago"]: float(r["total"]) for r in res_hoy_met}
 
     # 7) Últimas ventas (filtradas por el mismo rango/usuario si aplica)
@@ -233,7 +233,7 @@ async def get_dashboard_stats(
         order by m.fecha desc
         limit 10
     """)
-    res_last = (await db.execute(sql_last_sales, params_last_sales)).mappings().all()
+    res_last = (await db.execute(sql_last_sales, tuple(params_last_sales))).mappings().all()
     ultimas_ventas = [
         {"fecha": r["fecha"], "metodo_pago": r["metodo_pago"], "monto": float(r["monto"]), "sale_id": r["sale_id"]}
         for r in res_last
