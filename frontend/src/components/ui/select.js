@@ -7,11 +7,18 @@ const Select = ({ value, onValueChange, children, ...props }) => {
   const selectRef = useRef(null);
 
   useEffect(() => {
-    // Find the selected item's display text
-    const selectedChild = React.Children.toArray(children).find(child =>
-      child.props && child.props.value === value
-    );
-    setDisplayValue(selectedChild ? selectedChild.props.children : '');
+    // Find the selected item's display text within SelectContent
+    let foundValue = '';
+    React.Children.forEach(children, (child) => {
+      if (child.type === SelectContent) {
+        React.Children.forEach(child.props.children, (item) => {
+          if (item && item.props && item.props.value === value) {
+            foundValue = item.props.children;
+          }
+        });
+      }
+    });
+    setDisplayValue(foundValue);
   }, [value, children]);
 
   useEffect(() => {
@@ -72,7 +79,7 @@ const SelectValue = ({ placeholder, className = '', ...props }) => (
 
 const SelectContent = ({ children, className = '', ...props }) => (
   <div
-    className={`absolute top-full left-0 right-0 z-50 max-h-60 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg ${className}`}
+    className={`absolute top-full left-0 right-0 z-50 mt-1 max-h-96 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg ${className}`}
     {...props}
   >
     {children}
@@ -82,7 +89,7 @@ const SelectContent = ({ children, className = '', ...props }) => (
 const SelectItem = ({ children, value, onClick, selected, className = '', ...props }) => (
   <div
     onClick={onClick}
-    className={`relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 ${selected ? 'bg-blue-100 text-blue-900' : ''} ${className}`}
+    className={`relative flex w-full cursor-pointer select-none items-center rounded-sm py-2.5 px-3 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 ${selected ? 'bg-blue-100 text-blue-900 font-medium' : ''} ${className}`}
     {...props}
   >
     {children}
