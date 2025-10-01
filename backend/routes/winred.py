@@ -28,6 +28,7 @@ WINRED_SECRET_KEY  = os.getenv("WINRED_SECRET_KEY", "")
 WINRED_BASIC_USER  = os.getenv("WINRED_BASIC_USER", "")
 WINRED_BASIC_PASS  = os.getenv("WINRED_BASIC_PASS", "")
 WINRED_PROBE_SUBSCRIBER = os.getenv("WINRED_PROBE_SUBSCRIBER", "")
+WINRED_MS = os.getenv("WINRED_MS", "1").lower()  # "1" con .000, "0" sin .000
 
 # IDs permitidos para mostrar en UI (ajusta en .env si quieres)
 WINRED_ALLOWED_IDS = set(
@@ -55,7 +56,8 @@ def _compact_json(obj: Any) -> str:
     return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
 
 def _now_reqdate() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".000"
+    base = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"{base}.000" if WINRED_MS not in ("0", "false", "no") else base
 
 def _filter_allowed_packages_in_resp(resp: dict) -> dict:
     try:
@@ -185,7 +187,19 @@ class WinredClient:
         auth = aiohttp.BasicAuth(WINRED_BASIC_USER, WINRED_BASIC_PASS)
 
         # Usa SIEMPRE el builder fiel al PHP (mismo orden, misma fecha .000)
-        header = self.build_header_for_body()
+        header_full = self.build_header_for_body()
+
+        # AJUSTE A: querypackages calcula firma SIN hash_key, pero envía body CON hash_key
+        svc_lower = service.lower()
+        if svc_lower in ("querypackages",):
+            header_for_signature = {
+                "api_version": header_full["api_version"],
+                "api_key": header_full["api_key"],
+                "request_id": header_full["request_id"],
+                "request_date": header_full["request_date"],
+            }
+        else:
+            header_for_signature = header_full
 
         # Normaliza y fuerza orden de data
         if set(data.keys()) == {"suscriber"}:
@@ -198,14 +212,22 @@ class WinredClient:
                 "sell_from":  _as_str(data.get("sell_from", "S")),
             }
 
-        hj = json.dumps(header,      separators=(",", ":"), ensure_ascii=False)
-        dj = json.dumps(ordered_data,separators=(",", ":"), ensure_ascii=False)
+        hj = json.dumps(header_for_signature, separators=(",", ":"), ensure_ascii=False)
+        dj = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
         signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
 
         body_str = json.dumps(
-            {"header": header, "data": ordered_data, "signature": signature},
+            {"header": header_full, "data": ordered_data, "signature": signature},
             separators=(",", ":"), ensure_ascii=False
         )
+
+        # Debug log para querypackages
+        if svc_lower in ("querypackages",):
+            print(f"🔍 DEBUG querypackages:")
+            print(f"   header_for_signature: {hj}")
+            print(f"   data: {dj}")
+            print(f"   concat: {hj}{dj}{WINRED_API_KEY[:10]}...")
+            print(f"   signature: {signature}")
 
         url = f"{self.base_url}/{service.strip('/')}"
         headers = {"Accept": "text/plain", "Content-Type": "text/plain"}
@@ -221,7 +243,7 @@ class WinredClient:
                         raise HTTPException(status_code=502, detail=f"Respuesta no JSON de Winred: {text[:200]}")
                     resp["__mode"] = "php-text/plain-body"
                     resp["__route"] = service
-                    resp["__req_id"] = header["request_id"]
+                    resp["__req_id"] = header_full["request_id"]
                     return resp
                 raise HTTPException(status_code=502, detail=f"Winred HTTP {r.status}: {text}")
 
