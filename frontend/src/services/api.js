@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
+// Use empty baseURL for relative requests - nginx will proxy to backend
+const API_BASE_URL = '';
 
 // Create axios instance
 const api = axios.create({
