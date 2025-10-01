@@ -28,7 +28,6 @@ WINRED_SECRET_KEY  = os.getenv("WINRED_SECRET_KEY", "")
 WINRED_BASIC_USER  = os.getenv("WINRED_BASIC_USER", "")
 WINRED_BASIC_PASS  = os.getenv("WINRED_BASIC_PASS", "")
 WINRED_PROBE_SUBSCRIBER = os.getenv("WINRED_PROBE_SUBSCRIBER", "")
-WINRED_MS = os.getenv("WINRED_MS", "1").lower()  # "1" con .000, "0" sin .000
 
 # IDs permitidos para mostrar en UI (ajusta en .env si quieres)
 WINRED_ALLOWED_IDS = set(
@@ -57,9 +56,6 @@ def _compact_json(obj: Any) -> str:
 
 def _now_reqdate() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".000"
-
-def _compact_json(obj):
-    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
 
 def _filter_allowed_packages_in_resp(resp: dict) -> dict:
     try:
@@ -148,13 +144,12 @@ class WinredClient:
         string2hash = f"{WINRED_USER_ID}{request_id}{request_date}{WINRED_API_KEY}"
         hash_key = _b64_hmac_sha256(WINRED_SECRET_KEY, string2hash)
 
-        header = {
-        "api_version": WINRED_API_VERSION,
-        "api_key": WINRED_API_KEY,
-        "request_id": request_id,
-        "hash_key": hash_key,
-        "request_date": request_date,
-        }
+        header = {}
+        header["api_version"] = WINRED_API_VERSION
+        header["api_key"]     = WINRED_API_KEY
+        header["request_id"]  = request_id
+        header["hash_key"]    = hash_key
+        header["request_date"]= request_date
         return header
 
     def _payload_json_body(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -183,40 +178,29 @@ class WinredClient:
         Body: {"header","data","signature"}
         signature = b64(HMAC_SHA256(json(header)+json(data)+API_KEY, SECRET))
         - Orden header: api_version, api_key, request_id, hash_key, request_date
-        - Orden data (topup/paquetes): product_id, amount, suscriber, sell_from
+        - Orden data (topup): product_id, amount, suscriber, sell_from
         (para querytx: solo {"suscriber": "..."}).
         """
         _must_have_creds()
         auth = aiohttp.BasicAuth(WINRED_BASIC_USER, WINRED_BASIC_PASS)
+
+        # Usa SIEMPRE el builder fiel al PHP (mismo orden, misma fecha .000)
         header = self.build_header_for_body()
 
-        svc = service.lower()
-
-        if set(data.keys()) == {"suscriber"} and svc == "querytx":
+        # Normaliza y fuerza orden de data
+        if set(data.keys()) == {"suscriber"}:
             ordered_data = {"suscriber": _as_str(data["suscriber"])}
         else:
-            # 👇 SIEMPRE 4 claves, como en tu versión funcional (aunque vayan vacías)
             ordered_data = {
                 "product_id": _as_str(data.get("product_id", "")),
                 "amount":     _as_str(data.get("amount", "")),
-                "suscriber":  _as_str(data.get("suscriber", "")),
+                "suscriber":  _as_str(data.get("suscriber", "")),  # (sic)
                 "sell_from":  _as_str(data.get("sell_from", "S")),
             }
 
         hj = json.dumps(header,      separators=(",", ":"), ensure_ascii=False)
         dj = json.dumps(ordered_data,separators=(",", ":"), ensure_ascii=False)
-
-        # 👇 SIEMPRE con API_KEY al final (incluido querypackages)
-        message_to_sign = f"{hj}{dj}{WINRED_API_KEY}"
-        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, message_to_sign)
-
-        # Debug útil
-        if svc in ("querypackages", "topup", "querytx"):
-            print("🔍 DEBUG", service)
-            print("   header_for_signature:", hj)
-            print("   data:", dj)
-            print("   concat:", f"{hj}{dj}{WINRED_API_KEY}"[:160], "...")
-            print("   signature:", signature)
+        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
 
         body_str = json.dumps(
             {"header": header, "data": ordered_data, "signature": signature},
@@ -242,9 +226,8 @@ class WinredClient:
                 raise HTTPException(status_code=502, detail=f"Winred HTTP {r.status}: {text}")
 
 
-
     # -------- paquetes (tu flujo original que ya funciona) ----------
-    def _payload_json_mode(self, data: Dict[str, Any], include_hash: bool, sort: bool, include_apikey_suffix: bool = True) -> Dict[str, Any]:
+    def _payload_json_mode(self, data: Dict[str, Any], include_hash: bool, sort: bool) -> Dict[str, Any]:
         header = self.build_header_for_body()
         # Para el modo "paquetes" no importa el orden exacto como en PHP, pero mantenemos consistencia
         base_hdr = {
@@ -254,18 +237,10 @@ class WinredClient:
             "request_date": header["request_date"],
         }
         hdr_for_sign = {**base_hdr, "hash_key": header["hash_key"]} if include_hash else base_hdr
-
-        # Normalizar data: solo incluir campos que vienen en data (sin vacíos)
-        normalized_data = {k: _as_str(v) for k, v in data.items() if k in data}
-
         hj = json.dumps(hdr_for_sign, separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
-        dj = json.dumps(normalized_data, separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
-
-        # Firma con o sin API_KEY al final
-        message_to_sign = f"{hj}{dj}{WINRED_API_KEY}" if include_apikey_suffix else f"{hj}{dj}"
-        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, message_to_sign)
-
-        return {"header": header, "data": normalized_data, "signature": signature}
+        dj = json.dumps(data,        separators=(",", ":"), ensure_ascii=False, sort_keys=sort)
+        signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
+        return {"header": header, "data": data, "signature": signature}
 
     async def post_best(self, service: Any, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -281,16 +256,8 @@ class WinredClient:
 
         async with aiohttp.ClientSession(auth=auth, timeout=self.timeout) as session:
             for svc in services:
-                # Prueba múltiples variantes: (include_hash, sort, include_apikey_suffix, tag)
-                for (include_hash, sort, include_apikey, tag) in (
-                    (True, False, True, "with-hash"),
-                    (False, False, True, "no-hash"),
-                    (False, True, True, "no-hash+sorted"),
-                    (True, False, False, "with-hash-noapi"),
-                    (False, False, False, "no-hash-noapi"),
-                    (False, True, False, "no-hash+sorted-noapi"),
-                ):
-                    payload = self._payload_json_mode(data, include_hash, sort, include_apikey)
+                for (include_hash, sort, tag) in ((True, False, "with-hash"), (False, False, "no-hash"), (False, True, "no-hash+sorted")):
+                    payload = self._payload_json_mode(data, include_hash, sort)
                     req_id = payload["header"]["request_id"]
                     url = f"{self.base_url}/{svc.strip('/')}"
                     try:
@@ -376,18 +343,14 @@ async def get_packages(product_parent_id: int = Query(1, ge=0, description="0=to
         last_err = None
         for svc in ("querypackages", "queryPackages"):
             try:
-                raw = await winred.post_textplain_body(svc, {
-                    "product_id": str(product_parent_id),
-                    "amount": "",
-                    "suscriber": "",
-                    "sell_from": "S",
-                })
+                raw = await winred.post_textplain_body(svc, data)
                 resp = _filter_allowed_packages_in_resp(raw)
                 break
             except Exception as e_txt:
                 last_err = e_txt
                 continue
         else:
+            # si no rompió el bucle, fallaron ambas rutas
             raise HTTPException(status_code=502, detail=f"No se pudieron obtener paquetes (text/plain): {last_err}")
 
     # Post-proceso y orden, igual que antes
