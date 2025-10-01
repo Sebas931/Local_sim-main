@@ -20,6 +20,9 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Install gettext for envsubst
+RUN apk add --no-cache gettext
+
 # Copy custom nginx configuration template
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
@@ -32,5 +35,11 @@ ENV BACKEND_URL=http://localhost:8001
 # Expose port 80
 EXPOSE 80
 
-# Start nginx (envsubst will replace variables in templates)
-CMD ["nginx", "-g", "daemon off;"]
+# Create startup script
+RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
+    echo 'envsubst "\$BACKEND_URL" < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
+    echo 'nginx -g "daemon off;"' >> /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh
+
+# Start with custom script
+CMD ["/docker-entrypoint.sh"]
