@@ -28,8 +28,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://home.localsim.co",
-        "http://home.localsim.co",
+        "https://api.localsim.co/",
+        "https://api.localsim.co/",
     ],
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
