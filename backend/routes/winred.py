@@ -203,8 +203,13 @@ class WinredClient:
 
         # Normaliza y fuerza orden de data
         if set(data.keys()) == {"suscriber"}:
+            # querytx: solo suscriber
             ordered_data = {"suscriber": _as_str(data["suscriber"])}
+        elif svc_lower in ("querypackages",) and set(data.keys()) == {"product_id"}:
+            # querypackages: solo product_id (SIN campos vacíos)
+            ordered_data = {"product_id": _as_str(data["product_id"])}
         else:
+            # topup: todos los campos
             ordered_data = {
                 "product_id": _as_str(data.get("product_id", "")),
                 "amount":     _as_str(data.get("amount", "")),
