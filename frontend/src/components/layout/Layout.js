@@ -15,13 +15,13 @@ const Layout = ({ children, activeTab, onTabChange }) => {
 
   const navItems = [
     { module: 'Dashboard', value: 'dashboard', name: 'Dashboard', icon: BarChart3 },
-    { module: 'Punto de Venta', value: 'pos', name: 'Punto de Venta', icon: ShoppingCart },
-    { module: 'SIMs', value: 'sims', name: 'SIMs', icon: Package },
-    { module: 'Productos', value: 'products', name: 'Recargas', icon: Phone },
-    { module: 'Punto de Venta', value: 'devoluciones', name: 'Devoluciones', icon: ArrowRightLeft },
+    { module: 'Punto de venta', value: 'pos', name: 'Punto de Venta', icon: ShoppingCart },
+    { module: 'Sims', value: 'sims', name: 'SIMs', icon: Package },
+    { module: 'Recargas', value: 'products', name: 'Recargas', icon: Phone },
+    { module: 'Devoluciones', value: 'devoluciones', name: 'Devoluciones', icon: ArrowRightLeft },
     { module: 'Usuarios', value: 'users', name: 'Usuarios', icon: User},
-    { module: 'Punto de Venta', value: 'turnos', name: 'Turnos', icon: Clock },
-    { module: 'Dashboard', value: 'inventarios', name: 'Inventarios SIMs', icon: AlertTriangle },
+    { module: 'Turnos', value: 'turnos', name: 'Turnos', icon: Clock },
+    { module: 'Inventarios Sims', value: 'inventarios', name: 'Inventarios SIMs', icon: AlertTriangle },
   ];
 
   const visibleNavItems = navItems.filter(item => hasModule(item.module));

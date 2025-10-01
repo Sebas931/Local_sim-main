@@ -56,15 +56,21 @@ async def get_dashboard_stats(
         rango_desde = (now - timedelta(days=days)).replace(tzinfo=None)
         rango_hasta = now.replace(tzinfo=None)
 
-    where_user  = " and s.user_id = :user_id " if user_id_int else ""
-    where_rango = " and m.fecha >= :desde and m.fecha < :hasta " if (rango_desde and rango_hasta) else ""
+    # Build positional params for KPIs
+    params_payments = [today0, week0, month0, today0]
+    where_user = ""
+    where_rango = ""
+    param_idx = 5  # next parameter index
 
-    params_base = {"today0": today0, "week0": week0, "month0": month0}
     if user_id_int:
-        params_base["user_id"] = user_id_int
+        where_user = f" and s.user_id = ${param_idx} "
+        params_payments.append(user_id_int)
+        param_idx += 1
+
     if rango_desde and rango_hasta:
-        params_base["desde"] = rango_desde
-        params_base["hasta"] = rango_hasta
+        where_rango = f" and m.fecha >= ${param_idx} and m.fecha < ${param_idx + 1} "
+        params_payments.extend([rango_desde, rango_hasta])
+        param_idx += 2
 
     # 1) KPIs totales
     sql_payments = text(f"""
@@ -73,31 +79,45 @@ async def get_dashboard_stats(
             coalesce(sum(case when m.metodo_pago='cash' then m.monto end),0)      as total_efectivo,
             coalesce(sum(case when m.metodo_pago='electronic' then m.monto end),0) as total_electronicas,
             coalesce(sum(case when m.metodo_pago='card' then m.monto end),0)      as total_datafono,
-            coalesce(sum(case when m.fecha >= :today0 then m.monto end),0)        as total_hoy,
-            coalesce(sum(case when m.fecha >= :week0  then m.monto end),0)        as total_semana,
-            coalesce(sum(case when m.fecha >= :month0 then m.monto end),0)        as total_mes,
+            coalesce(sum(case when m.fecha >= $1 then m.monto end),0)        as total_hoy,
+            coalesce(sum(case when m.fecha >= $2  then m.monto end),0)        as total_semana,
+            coalesce(sum(case when m.fecha >= $3 then m.monto end),0)        as total_mes,
             count(*)                                                              as ventas_total,
-            coalesce(sum(case when m.fecha >= :today0 then 1 else 0 end),0)       as ventas_hoy
+            coalesce(sum(case when m.fecha >= $4 then 1 else 0 end),0)       as ventas_hoy
         from movimientos_caja m
         join sales s on m.sale_id = s.id
         where m.tipo='venta' and s.estado='activa'
         {where_user}
         {where_rango}
     """)
-    res_pay = (await db.execute(sql_payments, params_base)).mappings().one()
+    res_pay = (await db.execute(sql_payments, params_payments)).mappings().one()
 
-    # 2) Ticket promedio
+    # 2) Ticket promedio - reuse same params
+    params_ticket = [today0]
+    param_idx_ticket = 2
+    where_user_ticket = ""
+    where_rango_ticket = ""
+
+    if user_id_int:
+        where_user_ticket = f" and s.user_id = ${param_idx_ticket} "
+        params_ticket.append(user_id_int)
+        param_idx_ticket += 1
+
+    if rango_desde and rango_hasta:
+        where_rango_ticket = f" and m.fecha >= ${param_idx_ticket} and m.fecha < ${param_idx_ticket + 1} "
+        params_ticket.extend([rango_desde, rango_hasta])
+
     sql_ticket = text(f"""
         select
-            coalesce(avg(case when m.fecha >= :today0 then m.monto end),0) as ticket_promedio_hoy,
+            coalesce(avg(case when m.fecha >= $1 then m.monto end),0) as ticket_promedio_hoy,
             coalesce(avg(m.monto),0)                                       as ticket_promedio_mes
         from movimientos_caja m
         join sales s on m.sale_id = s.id
         where m.tipo='venta' and s.estado = 'activa'
-        {where_user}
-        {where_rango}
+        {where_user_ticket}
+        {where_rango_ticket}
     """)
-    res_ticket = (await db.execute(sql_ticket, params_base)).mappings().one()
+    res_ticket = (await db.execute(sql_ticket, params_ticket)).mappings().one()
 
     # 3) Serie diaria continua (incluye días con 0)
     if rango_desde and rango_hasta:
@@ -107,16 +127,18 @@ async def get_dashboard_stats(
         serie_desde = (now - timedelta(days=ventana)).replace(tzinfo=None)
         serie_hasta = now.replace(tzinfo=None)
 
-    params_series = {"desde": serie_desde, "hasta": serie_hasta}
+    # Convert params to list for positional binding
+    sql_series_params = [serie_desde, serie_hasta, serie_hasta, serie_desde, serie_hasta]
+    user_filter_series = ""
     if user_id_int:
-        params_series["user_id"] = user_id_int
-    where_user_series = " and s.user_id = :user_id " if user_id_int else ""
+        user_filter_series = " and s.user_id = $6 "
+        sql_series_params.append(user_id_int)
 
     sql_series = text(f"""
         with days as (
             select generate_series(
-                :desde::date,
-                (:hasta - interval '1 day')::date,
+                $1::date,
+                ($2 - interval '1 day')::date,
                 interval '1 day'
             )::date as d
         ),
@@ -128,9 +150,9 @@ async def get_dashboard_stats(
             join sales s on m.sale_id = s.id
             where m.tipo='venta'
               and s.estado='activa'
-              and m.fecha >= :desde
-              and m.fecha <  :hasta
-              {where_user_series}
+              and m.fecha >= $4
+              and m.fecha <  $5
+              {user_filter_series}
             group by 1
         )
         select d as fecha, coalesce(a.total, 0) as total
@@ -138,7 +160,7 @@ async def get_dashboard_stats(
         left join agg a using(d)
         order by d
     """)
-    series_rows = (await db.execute(sql_series, params_series)).mappings().all()
+    series_rows = (await db.execute(sql_series, sql_series_params)).mappings().all()
     series_por_dia = [{"fecha": r["fecha"].isoformat(), "total": float(r["total"])} for r in series_rows]
 
     # 4) SIMs (global)
@@ -180,15 +202,26 @@ async def get_dashboard_stats(
         from movimientos_caja m
         join sales s on m.sale_id = s.id
         where m.tipo='venta' and s.estado = 'activa'
-          and m.fecha >= :today0
+          and m.fecha >= $1
         group by m.metodo_pago
     """)
-    res_hoy_met = (await db.execute(sql_hoy_metodo, {"today0": today0})).mappings().all()
+    res_hoy_met = (await db.execute(sql_hoy_metodo, [today0])).mappings().all()
     ventas_hoy_por_metodo = {r["metodo_pago"]: float(r["total"]) for r in res_hoy_met}
 
     # 7) Últimas ventas (filtradas por el mismo rango/usuario si aplica)
-    where_user_last  = " and s.user_id = :user_id " if user_id_int else ""
-    where_rango_last = " and m.fecha >= :desde and m.fecha < :hasta " if (rango_desde and rango_hasta) else ""
+    params_last_sales = []
+    param_idx_last = 1
+    where_user_last = ""
+    where_rango_last = ""
+
+    if user_id_int:
+        where_user_last = f" and s.user_id = ${param_idx_last} "
+        params_last_sales.append(user_id_int)
+        param_idx_last += 1
+
+    if rango_desde and rango_hasta:
+        where_rango_last = f" and m.fecha >= ${param_idx_last} and m.fecha < ${param_idx_last + 1} "
+        params_last_sales.extend([rango_desde, rango_hasta])
 
     sql_last_sales = text(f"""
         select m.fecha, m.metodo_pago, m.monto, m.sale_id
@@ -200,7 +233,7 @@ async def get_dashboard_stats(
         order by m.fecha desc
         limit 10
     """)
-    res_last = (await db.execute(sql_last_sales, params_base)).mappings().all()
+    res_last = (await db.execute(sql_last_sales, params_last_sales)).mappings().all()
     ultimas_ventas = [
         {"fecha": r["fecha"], "metodo_pago": r["metodo_pago"], "monto": float(r["monto"]), "sale_id": r["sale_id"]}
         for r in res_last
