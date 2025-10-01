@@ -189,17 +189,9 @@ class WinredClient:
         # Usa SIEMPRE el builder fiel al PHP (mismo orden, misma fecha .000)
         header_full = self.build_header_for_body()
 
-        # AJUSTE A: querypackages calcula firma SIN hash_key, pero envía body CON hash_key
+        # Intento: querypackages usa header completo CON hash_key (como topup)
         svc_lower = service.lower()
-        if svc_lower in ("querypackages",):
-            header_for_signature = {
-                "api_version": header_full["api_version"],
-                "api_key": header_full["api_key"],
-                "request_id": header_full["request_id"],
-                "request_date": header_full["request_date"],
-            }
-        else:
-            header_for_signature = header_full
+        header_for_signature = header_full
 
         # Normaliza y fuerza orden de data
         if set(data.keys()) == {"suscriber"}:
