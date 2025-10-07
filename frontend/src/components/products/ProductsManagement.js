@@ -93,15 +93,20 @@ const ProductsManagement = () => {
       setLoading(true);
 
       if (tipoRecarga === 'individual') {
-        await winredService.topupIndividual(paramsRecarga);
-        showNotification('Recarga individual exitosa', 'success');
+        const result = await winredService.topupIndividual(paramsRecarga);
+        console.log('✅ Resultado recarga individual:', result);
+        showNotification(`Recarga individual exitosa. Filas actualizadas: ${result.updated_rows || 0}`, 'success');
       } else if (tipoRecarga === 'lote') {
-        await winredService.topupLote(paramsRecarga);
-        showNotification('Recarga de lote exitosa', 'success');
+        const result = await winredService.topupLote(paramsRecarga);
+        console.log('✅ Resultado recarga lote:', result);
+        showNotification(`Recarga de lote exitosa. ${result.successful_count || 0}/${result.processed || 0} SIMs recargadas`, 'success');
       }
 
-      // Refresh balance
-      await fetchWinredBalance();
+      // Refresh balance AND lotes
+      await Promise.all([
+        fetchWinredBalance(),
+        fetchLotes()
+      ]);
 
       // Clear form
       setMsisdnToTopup('');

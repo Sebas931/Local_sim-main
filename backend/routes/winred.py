@@ -5,6 +5,7 @@ import json
 import hmac
 import base64
 import hashlib
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import random
@@ -87,6 +88,8 @@ async def _apply_topup_to_sim_detalle(
       - fecha_ultima_recarga = now()
     Retorna cuántas filas fueron actualizadas.
     """
+    print(f"\n🔍 _apply_topup_to_sim_detalle - msisdn={msisdn}, winred_product_id={winred_product_id}")
+
     # 1) buscar siigo_code por product_id de Winred
     q = await db.execute(
         select(PlanHomologacion.siigo_code)
@@ -95,16 +98,24 @@ async def _apply_topup_to_sim_detalle(
     )
     row = q.first()
     siigo_code = row[0] if row else None
+
+    print(f"   📋 Homologación encontrada: siigo_code={siigo_code}")
+
     if not siigo_code:
         # si no hay homologación, no hacemos nada para no grabar código vacío
+        print(f"   ⚠️ NO SE ENCONTRÓ HOMOLOGACIÓN para winred_product_id={winred_product_id}")
+        print(f"   ⚠️ La SIM NO será actualizada. Verifica que exista en la tabla plan_homologacion")
         return 0
 
     # 2) normaliza msisdn (solo dígitos)
+    msisdn_original = msisdn
     msisdn = "".join(ch for ch in str(msisdn) if ch.isdigit())
     if len(msisdn) > 10:
         last10 = msisdn[-10:]
     else:
         last10 = msisdn
+
+    print(f"   📞 MSISDN normalizado: original={msisdn_original}, normalizado={msisdn}, last10={last10}")
 
     # 3) actualiza por coincidencia exacta; si tienes números con prefijo país en DB,
     #    este OR igual intenta por últimos 10 dígitos.
@@ -125,7 +136,16 @@ async def _apply_topup_to_sim_detalle(
         .execution_options(synchronize_session=False)
     )
     await db.commit()
-    return res.rowcount or 0
+
+    rowcount = res.rowcount or 0
+    print(f"   ✅ Filas actualizadas: {rowcount}")
+
+    if rowcount == 0:
+        print(f"   ⚠️ NO SE ACTUALIZÓ NINGUNA FILA. Verifica que exista una SIM con numero_linea={msisdn} o {last10}")
+    else:
+        print(f"   ✅ SIM actualizada correctamente: plan={siigo_code}, estado=recargado")
+
+    return rowcount
 
 # ====== CLIENTE ======
 class WinredClient:
@@ -428,73 +448,102 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
     exitosas_msisdns: List[str] = []
     fallidas: List[Dict[str, Any]] = []
 
-    for sim in sims:
-        msisdn = _as_str(sim.numero_linea)  
+    print(f"\n{'='*80}")
+    print(f"🔄 INICIANDO RECARGA DE LOTE: {body.lote_id}")
+    print(f"   Total SIMs a recargar: {len(sims)}")
+    print(f"   Product ID: {body.product_id}")
+    print(f"{'='*80}\n")
+
+    for idx, sim in enumerate(sims, 1):
+        msisdn = _as_str(sim.numero_linea)
+        print(f"📱 [{idx}/{len(sims)}] Procesando SIM: {msisdn}")
+
         data = {
             "product_id": _as_str(body.product_id),
             "amount": _as_str(body.amount),
             "suscriber": msisdn,
             "sell_from": _as_str(body.sell_from),
         }
-        # LOG: Imprimir el payload antes de enviar
-        try:
-            # Construir el header y la firma igual que en post_textplain_body
-            header = winred.build_header_for_body()
-            ordered_data = {
-                "product_id": _as_str(body.product_id),
-                "amount": _as_str(body.amount),
-                "suscriber": msisdn,
-                "sell_from": _as_str(body.sell_from),
-            }
-            hj = json.dumps(header, separators=(",", ":"), ensure_ascii=False)
-            dj = json.dumps(ordered_data, separators=(",", ":"), ensure_ascii=False)
-            signature = _b64_hmac_sha256(WINRED_SECRET_KEY, f"{hj}{dj}{WINRED_API_KEY}")
-            print(f"\n➡️ [LOG] Enviando a Winred: msisdn={msisdn}")
-            print(f"   Payload: {{'header': {header}, 'data': {ordered_data}, 'signature': {signature}}}")
-            print(f"   Concatenado para firma: {hj}{dj}{WINRED_API_KEY}")
-            print(f"   Signature: {signature}\n")
-        except Exception as log_exc:
-            print(f"⚠️ Error generando log de firma para msisdn={msisdn}: {log_exc}")
-        try:
-            resp = await winred.post_textplain_body("topup", data)
-            ok = (resp.get("result", {}) or {}).get("success") is True or resp.get("success") is True
-            if ok:
-                exitosas_msisdns.append(msisdn)
-                try:
-                    # Persistir inmediatamente en sim_detalle
-                    await _apply_topup_to_sim_detalle(
-                        db,
-                        msisdn=msisdn,
-                        winred_product_id=_as_str(body.product_id),
-                    )
-                except Exception as e:
-                    # no interrumpas el lote ante un error de DB puntual; registra en 'fallidas' si quieres
-                    print("⚠️ Persistencia sim_detalle fallida:", e)
-            else:
-                fallidas.append({"msisdn": msisdn, "resp": resp})
-        except Exception as e:
-            fallidas.append({"msisdn": msisdn, "error": str(e)})
 
-    # Homologación a Siigo
+        # Retry logic: hasta 3 intentos
+        success = False
+        last_error = None
+
+        for attempt in range(1, 4):  # Intentos: 1, 2, 3
+            try:
+                if attempt > 1:
+                    print(f"   🔄 Reintento {attempt}/3 para {msisdn}")
+                    # Delay progresivo: 2s, 4s
+                    await asyncio.sleep(2 * (attempt - 1))
+
+                resp = await winred.post_textplain_body("topup", data)
+                ok = (resp.get("result", {}) or {}).get("success") is True or resp.get("success") is True
+
+                if ok:
+                    print(f"   ✅ Recarga exitosa para {msisdn} (intento {attempt})")
+                    exitosas_msisdns.append(msisdn)
+
+                    # Persistir inmediatamente en sim_detalle
+                    try:
+                        await _apply_topup_to_sim_detalle(
+                            db,
+                            msisdn=msisdn,
+                            winred_product_id=_as_str(body.product_id),
+                        )
+                    except Exception as e:
+                        print(f"   ⚠️ Persistencia sim_detalle fallida para {msisdn}: {e}")
+
+                    success = True
+                    break  # Salir del loop de reintentos
+                else:
+                    msg = resp.get("result", {}).get("message", "Sin mensaje")
+                    print(f"   ⚠️ Winred rechazó la recarga (intento {attempt}): {msg}")
+                    last_error = resp
+
+                    # Si es error de firma y no es el último intento, reintentar
+                    if "firma" in msg.lower() and attempt < 3:
+                        continue
+                    else:
+                        break  # Error definitivo, no reintentar
+
+            except Exception as e:
+                print(f"   ❌ Error en intento {attempt} para {msisdn}: {e}")
+                last_error = str(e)
+                if attempt < 3:
+                    continue
+
+        # Si después de todos los intentos no fue exitoso
+        if not success:
+            fallidas.append({"msisdn": msisdn, "error": last_error})
+            print(f"   ❌ FALLO DEFINITIVO para {msisdn} después de 3 intentos")
+
+        # Delay entre SIMs para evitar rate limiting (1.5 segundos)
+        if idx < len(sims):  # No hacer delay después de la última
+            await asyncio.sleep(1.5)
+
+    # Resumen final
+    print(f"\n{'='*80}")
+    print(f"📊 RESUMEN DE RECARGA DE LOTE: {body.lote_id}")
+    print(f"   Total procesadas: {len(sims)}")
+    print(f"   ✅ Exitosas: {len(exitosas_msisdns)}")
+    print(f"   ❌ Fallidas: {len(fallidas)}")
+    if fallidas:
+        print(f"\n   SIMs fallidas:")
+        for f in fallidas:
+            print(f"      - {f['msisdn']}: {f.get('error', 'Sin detalles')}")
+    print(f"{'='*80}\n")
+
+    # Homologación a Siigo (ya no es necesario actualizar aquí porque se hace en _apply_topup_to_sim_detalle)
     q = await db.execute(
         select(PlanHomologacion.siigo_code).where(PlanHomologacion.winred_product_id == str(body.product_id))
     )
     row = q.first()
     siigo_code = row[0] if row else None
 
-    if exitosas_msisdns and siigo_code:
-        await db.execute(
-            update(SimDetalle)
-            .where(SimDetalle.lote_id == body.lote_id, SimDetalle.numero_linea.in_(exitosas_msisdns))
-            .values(
-                plan_asignado=siigo_code,
-                winred_product_id=str(body.product_id),
-                fecha_ultima_recarga=func.now(),
-            )
-        )
+    # Actualizar plan en el lote
     if siigo_code:
         await db.execute(update(SimLote).where(SimLote.id == body.lote_id).values(plan_asignado=siigo_code))
-    await db.commit()
+        await db.commit()
 
     return {
         "success": len(fallidas) == 0,
@@ -502,6 +551,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
         "successful_count": len(exitosas_msisdns),
         "failed_count": len(fallidas),
         "failed": fallidas,
+        "siigo_code": siigo_code,
     }
 
 # ====== DEBUG ======

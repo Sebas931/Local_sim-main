@@ -78,10 +78,10 @@ const TurnosManagement = () => {
 
       // Inicializar con inventarios vacíos para registro manual
       const inventariosIniciales = [
-        { plan: 'R5', cantidad_reportada: 0, observaciones: '' },
-        { plan: 'R7', cantidad_reportada: 0, observaciones: '' },
-        { plan: 'R15', cantidad_reportada: 0, observaciones: '' },
-        { plan: 'R30', cantidad_reportada: 0, observaciones: '' }
+        { plan: 'R5D', cantidad_reportada: 0, observaciones: '' },
+        { plan: 'R7D', cantidad_reportada: 0, observaciones: '' },
+        { plan: 'R15D', cantidad_reportada: 0, observaciones: '' },
+        { plan: 'R30D', cantidad_reportada: 0, observaciones: '' }
       ];
 
       setInventariosApertura(inventariosIniciales);
@@ -672,30 +672,7 @@ const TurnosManagement = () => {
               </p>
             </div>
 
-            {/* Resumen de Inventarios de Apertura */}
-            {inventariosExistentes && inventariosExistentes.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5 text-blue-600" />
-                    Inventario de Apertura (Referencia)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {inventariosExistentes.map((inv, idx) => (
-                      <div key={idx} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <div className="text-xs text-blue-600 font-medium mb-1">{inv.plan}</div>
-                        <div className="text-2xl font-bold text-blue-700">{inv.cantidad_reportada}</div>
-                        <div className="text-xs text-gray-600 mt-1">SIMs iniciales</div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Inventario de Cierre */}
+            {/* Inventario de Cierre - SIN mostrar inventario de apertura para evitar fraudes */}
             {inventariosCierre.length > 0 ? (
               <InventarioSimForm
                 title="Inventario de Cierre - Ingresa cuántas SIMs tienes ahora"
@@ -704,7 +681,7 @@ const TurnosManagement = () => {
                 planesDisponibles={[]}
                 showObservaciones={true}
                 readonly={false}
-                inventariosApertura={inventariosExistentes}
+                inventariosApertura={[]}
               />
             ) : (
               <Card>
@@ -790,56 +767,6 @@ const TurnosManagement = () => {
                 </div>
               </CardContent>
             </Card>
-
-              {/* Resumen Visual antes de confirmar */}
-              {inventariosCierre.length > 0 && inventariosExistentes.length > 0 && (
-                <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="text-lg">📊 Resumen de Inventario</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {inventariosCierre.map((invCierre, idx) => {
-                        const invApertura = inventariosExistentes.find(inv => inv.plan === invCierre.plan);
-                        if (!invApertura) return null;
-
-                        const inicial = invApertura.cantidad_reportada || 0;
-                        const final = invCierre.cantidad_reportada || 0;
-                        const diferencia = final - inicial;
-
-                        return (
-                          <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <Badge className={`${
-                                invCierre.plan === 'R5' ? 'bg-blue-100 text-blue-800' :
-                                invCierre.plan === 'R7' ? 'bg-green-100 text-green-800' :
-                                invCierre.plan === 'R15' ? 'bg-orange-100 text-orange-800' :
-                                'bg-purple-100 text-purple-800'
-                              }`}>
-                                {invCierre.plan}
-                              </Badge>
-                              <div className="text-sm">
-                                <span className="font-medium">{inicial}</span>
-                                <span className="text-gray-500 mx-1">→</span>
-                                <span className="font-bold">{final}</span>
-                              </div>
-                            </div>
-                            <div className={`text-sm font-bold ${
-                              diferencia === 0 ? 'text-gray-600' :
-                              diferencia > 0 ? 'text-blue-600' :
-                              'text-red-600'
-                            }`}>
-                              {diferencia === 0 ? '✓ Sin cambios' :
-                               diferencia > 0 ? `+${diferencia} (sobran)` :
-                               `${diferencia} (vendidas/faltantes)`}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Buttons */}
               <div className="flex justify-end space-x-2 pt-4">

@@ -49,7 +49,7 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
 
     Args:
         turno_id: ID del turno
-        plan: Plan de SIM (R5, R7, R15, R30)
+        plan: Plan de SIM (R5D, R7D, R15D, R30D)
         cantidad_inicial: Cantidad reportada en la apertura
 
     Returns:
@@ -60,8 +60,11 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
         }
     """
     try:
+        print(f"\n🔍 Calculando inventario teórico - Turno: {turno_id}, Plan: {plan}, Inicial: {cantidad_inicial}")
+
         # Buscar ventas de SIMs del plan específico durante este turno
-        # Basado en códigos de producto que contengan el plan (ej: "SIM_R5", "R5", etc.)
+        # IMPORTANTE: Usar coincidencia EXACTA del product_code para evitar contar ventas de otros planes
+        # Ej: plan R5D no debe capturar R15D
         result = await db.execute(
             select(func.coalesce(func.sum(SaleItem.quantity), 0))
             .join(Sale, SaleItem.sale_id == Sale.id)
@@ -70,16 +73,16 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
                 MovimientoCaja.turno_id == turno_id,
                 Sale.estado == "activa",
                 MovimientoCaja.tipo == "venta",
-                or_(
-                    SaleItem.product_code.ilike(f'%{plan}%'),
-                    SaleItem.description.ilike(f'%{plan}%')
-                )
+                SaleItem.product_code == plan  # Coincidencia EXACTA para evitar errores
             )
         )
         ventas_realizadas = result.scalar() or 0
 
         # Calcular inventario teórico
         inventario_teorico = cantidad_inicial - ventas_realizadas
+
+        print(f"   📊 Ventas realizadas: {ventas_realizadas}")
+        print(f"   📦 Inventario teórico: {inventario_teorico} (inicial {cantidad_inicial} - ventas {ventas_realizadas})")
 
         return {
             'cantidad_inicial': cantidad_inicial,

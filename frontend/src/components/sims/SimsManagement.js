@@ -18,6 +18,17 @@ const SimsManagement = () => {
   // File upload
   const [uploadFile, setUploadFile] = useState(null);
 
+  // Helper para traducir estados
+  const traducirEstado = (estado) => {
+    const traducciones = {
+      'available': 'Disponible',
+      'recargado': 'Recargado',
+      'vendido': 'Vendido',
+      'sold': 'Vendido'
+    };
+    return traducciones[estado?.toLowerCase()] || estado || '—';
+  };
+
   useEffect(() => {
     fetchLotes();
     fetchDashboardStats();
@@ -179,7 +190,7 @@ const SimsManagement = () => {
                       </td>
                       <td className="border px-2 py-1">{lote.operador}</td>
                       <td className="border px-2 py-1">{lote.plan_asignado || "Pendiente"}</td>
-                      <td className="border px-2 py-1">{lote.estado}</td>
+                      <td className="border px-2 py-1">{traducirEstado(lote.estado)}</td>
                       <td className="border px-2 py-1">{lote.total_sims}</td>
                       <td className="border px-2 py-1 text-green-600">{lote.sims_disponibles}</td>
                       <td className="border px-2 py-1 text-blue-600">{lote.sims_recargadas}</td>
@@ -202,7 +213,7 @@ const SimsManagement = () => {
                                 <tr key={sim.id}>
                                   <td className="px-2 py-1">{sim.numero_linea}</td>
                                   <td className="px-2 py-1">{sim.iccid}</td>
-                                  <td className="px-2 py-1">{sim.estado}</td>
+                                  <td className="px-2 py-1">{traducirEstado(sim.estado)}</td>
                                   <td className="border px-2 py-1">
                                     {sim.fecha_registro ? new Date(sim.fecha_registro).toLocaleString("es-CO", {
                                       day: '2-digit',

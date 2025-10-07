@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const InventarioSimForm = ({
   title = "Inventario de SIMs",
@@ -18,6 +19,14 @@ const InventarioSimForm = ({
   inventariosApertura = [] // Para mostrar comparación en cierre
 }) => {
   const [inventariosInternos, setInventariosInternos] = useState([]);
+
+  // Planes disponibles para el dropdown
+  const PLANES_OPCIONES = [
+    { value: 'R5D', label: 'R5D - 5 Días' },
+    { value: 'R7D', label: 'R7D - 7 Días' },
+    { value: 'R15D', label: 'R15D - 15 Días' },
+    { value: 'R30D', label: 'R30D - 30 Días' }
+  ];
 
   // Inicializar inventarios basado en planes disponibles
   useEffect(() => {
@@ -71,6 +80,11 @@ const InventarioSimForm = ({
 
   const getPlanColor = (plan) => {
     const colors = {
+      'R5D': 'bg-blue-100 text-blue-800',
+      'R7D': 'bg-green-100 text-green-800',
+      'R15D': 'bg-orange-100 text-orange-800',
+      'R30D': 'bg-purple-100 text-purple-800',
+      // Compatibilidad con códigos sin D (por si acaso)
       'R5': 'bg-blue-100 text-blue-800',
       'R7': 'bg-green-100 text-green-800',
       'R15': 'bg-orange-100 text-orange-800',
@@ -135,13 +149,21 @@ const InventarioSimForm = ({
                     ) : (
                       <div className="flex-1">
                         <Label htmlFor={`plan-${index}`}>Plan</Label>
-                        <Input
-                          id={`plan-${index}`}
+                        <Select
                           value={inventario.plan}
-                          onChange={(e) => actualizarInventario(index, 'plan', e.target.value)}
-                          placeholder="Ej: R5, R7, R15, R30"
-                          className="mt-1"
-                        />
+                          onValueChange={(value) => actualizarInventario(index, 'plan', value)}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecciona un plan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PLANES_OPCIONES.map((opcion) => (
+                              <SelectItem key={opcion.value} value={opcion.value}>
+                                {opcion.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
 
@@ -159,16 +181,7 @@ const InventarioSimForm = ({
                   )}
                 </div>
 
-                {/* Mostrar referencia de apertura si existe */}
-                {inventariosApertura.length > 0 && !readonly && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                    <div className="text-xs text-blue-700 font-medium mb-1">📦 Cantidad Inicial en Apertura:</div>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {inventariosApertura.find(inv => inv.plan === inventario.plan)?.cantidad_reportada || 0} SIMs
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1">Ingresa cuántas SIMs de este plan tienes ahora</div>
-                  </div>
-                )}
+                {/* Referencia de apertura ELIMINADA para evitar fraudes - los asesores NO deben ver cuánto tenían al inicio */}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -185,27 +198,7 @@ const InventarioSimForm = ({
                       className="mt-1 text-lg font-semibold"
                       readOnly={readonly}
                     />
-                    {inventariosApertura.length > 0 && !readonly && (
-                      <div className="mt-1">
-                        {(() => {
-                          const inicial = inventariosApertura.find(inv => inv.plan === inventario.plan)?.cantidad_reportada || 0;
-                          const actual = inventario.cantidad_reportada || 0;
-                          const diferencia = actual - inicial;
-
-                          return (
-                            <div className={`text-xs font-medium ${
-                              diferencia === 0 ? 'text-gray-600' :
-                              diferencia > 0 ? 'text-blue-600' :
-                              'text-orange-600'
-                            }`}>
-                              {diferencia === 0 ? 'Sin cambios respecto a apertura' :
-                               diferencia > 0 ? `+${diferencia} más que en apertura` :
-                               `${diferencia} menos que en apertura (vendidas/usadas)`}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
+                    {/* Diferencias en tiempo real ELIMINADAS para evitar fraudes */}
                   </div>
 
                   {showObservaciones && (

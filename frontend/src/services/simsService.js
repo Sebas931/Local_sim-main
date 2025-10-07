@@ -3,7 +3,7 @@ import api from './api';
 export const simsService = {
   getSims: async () => {
     const response = await api.get('/api/sims', {
-      params: { status: 'available' }
+      params: { status: 'recargado' }  // Cambio: traer SIMs recargadas (con plan asignado)
     });
     // Handle both direct array and wrapped object responses
     const data = response.data;
