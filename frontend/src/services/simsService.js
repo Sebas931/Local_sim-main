@@ -2,12 +2,25 @@ import api from './api';
 
 export const simsService = {
   getSims: async () => {
-    const response = await api.get('/api/sims', {
-      params: { status: 'recargado' }  // Cambio: traer SIMs recargadas (con plan asignado)
-    });
-    // Handle both direct array and wrapped object responses
+    // Traer SIMs que NO estén vendidas (tanto 'available' como 'recargado' están disponibles para venta)
+    const response = await api.get('/api/sims');
     const data = response.data;
-    return data.sims || data || [];
+    const allSims = data.sims || data || [];
+
+    console.log('📊 Total SIMs recibidas del backend:', allSims.length);
+
+    // Filtrar SIMs que tengan plan asignado y NO estén vendidas
+    const simsDisponibles = allSims.filter(sim => {
+      const tienePlan = sim.plan_asignado && sim.plan_asignado !== '';
+      const noVendida = sim.estado !== 'vendido' && sim.estado !== 'sold';
+      return tienePlan && noVendida;
+    });
+
+    console.log('📊 SIMs disponibles con plan asignado (no vendidas):', simsDisponibles.length);
+    console.log('📋 Estados encontrados:', [...new Set(allSims.map(s => s.estado))]);
+    console.log('📋 SIMs con plan:', allSims.filter(s => s.plan_asignado).length);
+
+    return simsDisponibles;
   },
 
   // Get all SIMs without status filter for management view
