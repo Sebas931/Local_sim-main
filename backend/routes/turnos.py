@@ -62,9 +62,24 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
     try:
         print(f"\n🔍 Calculando inventario teórico - Turno: {turno_id}, Plan: {plan}, Inicial: {cantidad_inicial}")
 
+        # Primero: Ver TODOS los product_code del turno para debugging
+        debug_result = await db.execute(
+            select(SaleItem.product_code, SaleItem.description, SaleItem.quantity)
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .join(MovimientoCaja, Sale.id == MovimientoCaja.sale_id)
+            .where(
+                MovimientoCaja.turno_id == turno_id,
+                Sale.estado == "activa",
+                MovimientoCaja.tipo == "venta"
+            )
+        )
+        todos_items = debug_result.all()
+        print(f"   🔎 TODOS los items vendidos en este turno:")
+        for item in todos_items:
+            print(f"      - product_code='{item.product_code}', description='{item.description}', qty={item.quantity}")
+
         # Buscar ventas de SIMs del plan específico durante este turno
-        # IMPORTANTE: Usar coincidencia EXACTA del product_code para evitar contar ventas de otros planes
-        # Ej: plan R5D no debe capturar R15D
+        # Intentar con coincidencia que incluya el plan en el product_code
         result = await db.execute(
             select(func.coalesce(func.sum(SaleItem.quantity), 0))
             .join(Sale, SaleItem.sale_id == Sale.id)
@@ -73,7 +88,10 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
                 MovimientoCaja.turno_id == turno_id,
                 Sale.estado == "activa",
                 MovimientoCaja.tipo == "venta",
-                SaleItem.product_code == plan  # Coincidencia EXACTA para evitar errores
+                or_(
+                    SaleItem.product_code == plan,
+                    SaleItem.product_code.ilike(f'%{plan}%')
+                )
             )
         )
         ventas_realizadas = result.scalar() or 0
@@ -81,7 +99,7 @@ async def _calcular_inventario_teorico_por_plan(db: AsyncSession, turno_id: str,
         # Calcular inventario teórico
         inventario_teorico = cantidad_inicial - ventas_realizadas
 
-        print(f"   📊 Ventas realizadas: {ventas_realizadas}")
+        print(f"   📊 Ventas realizadas del plan {plan}: {ventas_realizadas}")
         print(f"   📦 Inventario teórico: {inventario_teorico} (inicial {cantidad_inicial} - ventas {ventas_realizadas})")
 
         return {
