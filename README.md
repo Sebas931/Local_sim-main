@@ -53,7 +53,7 @@ cp .env.example .env
 
 5. Iniciar servidor:
 ```bash
-uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Frontend

@@ -131,8 +131,17 @@ async def abrir_turno(
     await db.flush()  # Para obtener el ID del turno
 
     # Registrar inventarios de SIMs si se proporcionaron
+    print(f"\n{'='*80}")
+    print(f"📦 GUARDANDO INVENTARIOS DE APERTURA - Turno ID: {nuevo_turno.id}")
+    print(f"{'='*80}")
+
     inventarios_creados = []
     for inventario in turno_data.inventarios:
+        print(f"\n📝 Guardando inventario:")
+        print(f"   Plan: {inventario.plan}")
+        print(f"   Cantidad reportada: {inventario.cantidad_reportada}")
+        print(f"   Observaciones: {inventario.observaciones or 'N/A'}")
+
         # No calcular inventario del sistema - será manual
         inventario_sim = InventarioSimTurno(
             id=uuid4(),
@@ -147,6 +156,8 @@ async def abrir_turno(
         inventarios_creados.append(inventario_sim)
 
     await db.commit()
+    print(f"\n✅ Se guardaron {len(inventarios_creados)} inventarios de apertura")
+    print(f"{'='*80}\n")
     await db.refresh(nuevo_turno)
 
     # Preparar respuesta simple sin relaciones complejas
@@ -182,7 +193,14 @@ async def cerrar_turno_con_inventario(
         aware_now = datetime.now(timezone.utc)
 
         # 3) Actualizar inventarios de SIMs si se proporcionaron
+        print(f"\n{'='*80}")
+        print(f"📦 PROCESANDO INVENTARIOS DE CIERRE - Turno ID: {turno.id}")
+        print(f"{'='*80}")
+
         for inventario_cierre in cierre_data.inventarios:
+            print(f"\n🔍 Procesando plan: {inventario_cierre.plan}")
+            print(f"   Cantidad reportada en cierre: {inventario_cierre.cantidad_reportada}")
+
             # Buscar el registro de inventario existente
             inventario_result = await db.execute(
                 select(InventarioSimTurno).where(
@@ -193,6 +211,10 @@ async def cerrar_turno_con_inventario(
             inventario_sim = inventario_result.scalar_one_or_none()
 
             if inventario_sim:
+                print(f"   ✅ Encontrado inventario de apertura:")
+                print(f"      - Cantidad inicial reportada: {inventario_sim.cantidad_inicial_reportada}")
+                print(f"      - Cantidad inicial sistema: {inventario_sim.cantidad_inicial_sistema}")
+
                 # Calcular inventario teórico basado en ventas del turno
                 inventario_teorico = await _calcular_inventario_teorico_por_plan(
                     db, str(turno.id), inventario_cierre.plan, inventario_sim.cantidad_inicial_reportada
@@ -204,7 +226,18 @@ async def cerrar_turno_con_inventario(
                 inventario_sim.diferencia_final = inventario_cierre.cantidad_reportada - inventario_teorico['inventario_teorico']
                 inventario_sim.observaciones_cierre = inventario_cierre.observaciones
                 inventario_sim.fecha_cierre = aware_now
+
+                print(f"\n   📊 RESULTADO DEL CÁLCULO:")
+                print(f"      - Cantidad final reportada: {inventario_sim.cantidad_final_reportada}")
+                print(f"      - Cantidad final sistema (teórico): {inventario_sim.cantidad_final_sistema}")
+                print(f"      - Diferencia final: {inventario_sim.diferencia_final}")
+                print(f"      - {'✅ CUADRA' if inventario_sim.diferencia_final == 0 else '⚠️ DESCUADRE'}")
+
             else:
+                print(f"   ⚠️ NO se encontró inventario de apertura para el plan {inventario_cierre.plan}")
+                print(f"   ⚠️ Esto significa que el plan NO se registró en la apertura del turno")
+                print(f"   ⚠️ No se puede calcular descuadre sin inventario inicial")
+
                 # Si no existe registro de apertura, no se puede calcular descuadre
                 # Crear registro solo para documentar el cierre
                 nuevo_inventario = InventarioSimTurno(
@@ -221,6 +254,7 @@ async def cerrar_turno_con_inventario(
                     fecha_cierre=aware_now
                 )
                 db.add(nuevo_inventario)
+                print(f"   📝 Se creó registro de cierre sin calcular descuadre")
 
         # 4) Continuar con el proceso normal de cierre de caja
         # (mismo código que el endpoint original)
