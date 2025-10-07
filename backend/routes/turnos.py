@@ -724,6 +724,18 @@ async def inventarios_con_descuadres(
             "estado_turno": turno.estado
         })
 
+    # Ordenar inventarios por plan (R5D, R7D, R15D, R30D)
+    orden_planes = ['R5D', 'R7D', 'R15D', 'R30D']
+
+    def get_plan_order(inv):
+        plan = inv.get('plan', '')
+        try:
+            return orden_planes.index(plan)
+        except ValueError:
+            return 999  # Plans not in list go to end
+
+    inventarios.sort(key=get_plan_order)
+
     usuarios = [{"id": uid, "name": name} for uid, name in usuarios_set]
 
     return {
@@ -756,15 +768,25 @@ async def inventarios_por_turno(
     inventarios_result = await db.execute(
         select(InventarioSimTurno)
         .where(InventarioSimTurno.turno_id == turno_id)
-        .order_by(InventarioSimTurno.plan)
     )
     inventarios = inventarios_result.scalars().all()
+
+    # Ordenar por plan (R5D, R7D, R15D, R30D)
+    orden_planes = ['R5D', 'R7D', 'R15D', 'R30D']
+
+    def get_plan_order(inv):
+        try:
+            return orden_planes.index(inv.plan)
+        except ValueError:
+            return 999
+
+    inventarios_ordenados = sorted(inventarios, key=get_plan_order)
 
     return {
         "turno_id": turno_id,
         "inventarios": [
             InventarioSimTurnoResponse.from_orm_with_indicators(inv)
-            for inv in inventarios
+            for inv in inventarios_ordenados
         ]
     }
 
@@ -782,7 +804,6 @@ async def planes_sim_disponibles(
             SimDetalle.plan_asignado.isnot(None)
         )
         .group_by(SimDetalle.plan_asignado)
-        .order_by(SimDetalle.plan_asignado)
     )
 
     planes = [
@@ -792,5 +813,16 @@ async def planes_sim_disponibles(
         }
         for row in result.all()
     ]
+
+    # Ordenar por plan (R5D, R7D, R15D, R30D)
+    orden_planes = ['R5D', 'R7D', 'R15D', 'R30D']
+
+    def get_plan_order(plan_dict):
+        try:
+            return orden_planes.index(plan_dict['plan'])
+        except ValueError:
+            return 999
+
+    planes.sort(key=get_plan_order)
 
     return {"planes": planes}

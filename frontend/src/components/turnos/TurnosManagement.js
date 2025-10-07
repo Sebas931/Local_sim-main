@@ -138,8 +138,21 @@ const TurnosManagement = () => {
         setInventariosExistentes(inventarios);
 
         if (inventarios && inventarios.length > 0) {
+          // Orden deseado de planes
+          const ordenPlanes = ['R5D', 'R7D', 'R15D', 'R30D'];
+
+          // Ordenar inventarios según el orden especificado
+          const inventariosOrdenados = [...inventarios].sort((a, b) => {
+            const indexA = ordenPlanes.indexOf(a.plan);
+            const indexB = ordenPlanes.indexOf(b.plan);
+            // Si el plan no está en la lista, ponerlo al final
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+          });
+
           // Initialize closing inventory with the same plans but zero quantities
-          const inventariosCierreInit = inventarios.map(inv => ({
+          const inventariosCierreInit = inventariosOrdenados.map(inv => ({
             plan: inv.plan,
             cantidad_reportada: 0,
             observaciones: ''
