@@ -204,6 +204,7 @@ const SimsManagement = () => {
                               <tr className="text-left bg-gray-200">
                                 <th className="px-2 py-1">Número</th>
                                 <th className="px-2 py-1">ICCID</th>
+                                <th className="px-2 py-1">Plan Asignado</th>
                                 <th className="px-2 py-1">Estado</th>
                                 <th className="px-2 py-1">Fecha Registro</th>
                               </tr>
@@ -213,6 +214,7 @@ const SimsManagement = () => {
                                 <tr key={sim.id}>
                                   <td className="px-2 py-1">{sim.numero_linea}</td>
                                   <td className="px-2 py-1">{sim.iccid}</td>
+                                  <td className="px-2 py-1">{sim.plan_asignado || '—'}</td>
                                   <td className="px-2 py-1">{traducirEstado(sim.estado)}</td>
                                   <td className="border px-2 py-1">
                                     {sim.fecha_registro ? new Date(sim.fecha_registro).toLocaleString("es-CO", {
