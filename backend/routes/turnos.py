@@ -16,6 +16,7 @@ from models import (
     User,
     MovimientoCaja,
     Sale,
+    SaleItem,
     InventarioSimTurno,
     SimDetalle,
     SimLote,
