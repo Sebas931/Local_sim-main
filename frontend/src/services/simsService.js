@@ -72,5 +72,46 @@ export const simsService = {
   getDashboardStats: async () => {
     const response = await api.get('/api/sims/dashboard/stats');
     return response.data;
+  },
+
+  // Crear lote vacío
+  createLote: async (loteId, operador) => {
+    const response = await api.post('/api/sims/lotes/create', null, {
+      params: { lote_id: loteId, operador }
+    });
+    return response.data;
+  },
+
+  // Agregar SIM individual a lote existente
+  addSimToLote: async (loteId, numeroLinea, iccid) => {
+    const response = await api.post('/api/sims/sim/individual', null, {
+      params: {
+        lote_id: loteId,
+        numero_linea: numeroLinea,
+        iccid: iccid
+      }
+    });
+    return response.data;
+  },
+
+  // Crear SIM completa (crea lote si no existe)
+  createSimComplete: async (loteId, operador, numeroLinea, iccid) => {
+    const response = await api.post('/api/sims/sim/create-complete', null, {
+      params: {
+        lote_id: loteId,
+        operador: operador,
+        numero_linea: numeroLinea,
+        iccid: iccid
+      }
+    });
+    return response.data;
+  },
+
+  // Eliminar SIM individual
+  deleteSim: async (simId, force = false) => {
+    const response = await api.delete(`/api/sims/sim/${simId}`, {
+      params: { force }
+    });
+    return response.data;
   }
 };

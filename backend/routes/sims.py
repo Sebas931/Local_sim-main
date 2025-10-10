@@ -201,6 +201,251 @@ async def upload_lotes(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================
+# Crear lote manualmente (vacío o con info básica)
+# ============================================================
+
+@router.post("/lotes/create")
+async def crear_lote(
+    lote_id: str,
+    operador: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """Crear un nuevo lote vacío para luego agregar SIMs individuales"""
+    try:
+        # Verificar que el lote no exista
+        exists = await db.execute(select(SimLote).where(SimLote.id == lote_id))
+        if exists.scalars().first():
+            raise HTTPException(status_code=400, detail=f"El lote {lote_id} ya existe")
+
+        # Crear el lote
+        nuevo_lote = SimLote(
+            id=lote_id.strip(),
+            operador=operador.strip(),
+            estado="available"
+        )
+        db.add(nuevo_lote)
+        await db.commit()
+
+        return {
+            "message": f"Lote {lote_id} creado exitosamente",
+            "lote_id": lote_id,
+            "operador": operador
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear lote: {str(e)}")
+
+# ============================================================
+# Agregar SIM individual a un lote
+# ============================================================
+
+@router.post("/sim/individual")
+async def agregar_sim_individual(
+    lote_id: str,
+    numero_linea: str,
+    iccid: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """Agregar una SIM individual a un lote existente"""
+    try:
+        # Validar que el lote exista
+        lote = (await db.execute(select(SimLote).where(SimLote.id == lote_id))).scalars().first()
+        if not lote:
+            raise HTTPException(status_code=404, detail=f"El lote {lote_id} no existe")
+
+        # Validar que el ICCID no exista ya
+        iccid_clean = iccid.strip()
+        exists = (await db.execute(
+            select(SimDetalle).where(SimDetalle.iccid == iccid_clean)
+        )).scalars().first()
+
+        if exists:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El ICCID {iccid_clean} ya existe en el sistema"
+            )
+
+        # Contar SIMs en el lote
+        count = (await db.execute(
+            select(func.count(SimDetalle.id)).where(SimDetalle.lote_id == lote_id)
+        )).scalar() or 0
+
+        if count >= 20:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El lote {lote_id} ya tiene 20 SIMs (límite máximo)"
+            )
+
+        # Crear la SIM
+        nueva_sim = SimDetalle(
+            id=str(uuid4()),
+            lote_id=lote_id,
+            numero_linea=numero_linea.strip(),
+            iccid=iccid_clean,
+            estado=ST_AVAILABLE
+        )
+        db.add(nueva_sim)
+        await db.commit()
+        await db.refresh(nueva_sim)
+
+        return {
+            "message": f"SIM agregada exitosamente al lote {lote_id}",
+            "sim": _sim_to_dict(nueva_sim, lote.plan_asignado),
+            "total_sims_en_lote": count + 1
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al agregar SIM: {str(e)}")
+
+# ============================================================
+# Crear SIM completa (crea lote si no existe)
+# ============================================================
+
+@router.post("/sim/create-complete")
+async def crear_sim_completa(
+    lote_id: str,
+    operador: str,
+    numero_linea: str,
+    iccid: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Crear una SIM completa. Si el lote no existe, lo crea automáticamente.
+    Útil para agregar SIMs individuales sin preocuparse por crear el lote primero.
+    """
+    try:
+        # Validar que el ICCID no exista ya
+        iccid_clean = iccid.strip()
+        exists = (await db.execute(
+            select(SimDetalle).where(SimDetalle.iccid == iccid_clean)
+        )).scalars().first()
+
+        if exists:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El ICCID {iccid_clean} ya existe en el sistema"
+            )
+
+        # Buscar o crear el lote
+        lote = (await db.execute(select(SimLote).where(SimLote.id == lote_id))).scalars().first()
+
+        if not lote:
+            # Crear el lote si no existe
+            lote = SimLote(
+                id=lote_id.strip(),
+                operador=operador.strip(),
+                estado="available"
+            )
+            db.add(lote)
+            await db.flush()  # Flush para obtener el lote antes de agregar la SIM
+            lote_creado = True
+        else:
+            lote_creado = False
+            # Verificar límite de SIMs en el lote existente
+            count = (await db.execute(
+                select(func.count(SimDetalle.id)).where(SimDetalle.lote_id == lote_id)
+            )).scalar() or 0
+
+            if count >= 20:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El lote {lote_id} ya tiene 20 SIMs (límite máximo)"
+                )
+
+        # Crear la SIM
+        nueva_sim = SimDetalle(
+            id=str(uuid4()),
+            lote_id=lote_id,
+            numero_linea=numero_linea.strip(),
+            iccid=iccid_clean,
+            estado=ST_AVAILABLE
+        )
+        db.add(nueva_sim)
+        await db.commit()
+        await db.refresh(nueva_sim)
+
+        # Contar total de SIMs en el lote
+        total_sims = (await db.execute(
+            select(func.count(SimDetalle.id)).where(SimDetalle.lote_id == lote_id)
+        )).scalar() or 0
+
+        return {
+            "message": f"SIM creada exitosamente" + (f" (lote {lote_id} creado)" if lote_creado else ""),
+            "lote_creado": lote_creado,
+            "lote_id": lote_id,
+            "operador": lote.operador,
+            "sim": _sim_to_dict(nueva_sim, lote.plan_asignado),
+            "total_sims_en_lote": total_sims
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear SIM: {str(e)}")
+
+# ============================================================
+# Eliminar SIM individual
+# ============================================================
+
+@router.delete("/sim/{sim_id}")
+async def eliminar_sim(
+    sim_id: str,
+    force: bool = Query(False, description="Forzar eliminación incluso si está vendida"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Eliminar una SIM individual del sistema.
+    Por defecto, no permite eliminar SIMs vendidas a menos que se use force=true
+    """
+    try:
+        # Buscar la SIM
+        sim = (await db.execute(
+            select(SimDetalle).where(SimDetalle.id == sim_id)
+        )).scalars().first()
+
+        if not sim:
+            raise HTTPException(status_code=404, detail="SIM no encontrada")
+
+        # Verificar si está vendida
+        if sim.estado == ST_SOLD or sim.vendida:
+            if not force:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se puede eliminar una SIM vendida. Use force=true para forzar la eliminación."
+                )
+
+        lote_id = sim.lote_id
+
+        # Eliminar la SIM
+        await db.delete(sim)
+        await db.commit()
+
+        # Contar SIMs restantes en el lote
+        remaining = (await db.execute(
+            select(func.count(SimDetalle.id)).where(SimDetalle.lote_id == lote_id)
+        )).scalar() or 0
+
+        return {
+            "message": f"SIM {sim.iccid} eliminada exitosamente",
+            "sim_id": sim_id,
+            "lote_id": lote_id,
+            "sims_restantes_en_lote": remaining
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al eliminar SIM: {str(e)}")
+
+# ============================================================
 # Asignar plan a un lote (propaga a cada SIM)
 # ============================================================
 
@@ -254,9 +499,9 @@ async def listar_lotes(db: AsyncSession = Depends(get_async_session)):
                 SimLote.estado,
                 SimLote.fecha_registro,
                 func.count(SimDetalle.id).label("total_sims"),
-                func.sum(case((SimDetalle.estado == ST_AVAILABLE, 1), else_=0)).label("sims_disponibles"),
-                func.sum(case((SimDetalle.estado == ST_RECHARGED, 1), else_=0)).label("sims_recargadas"),
-                func.sum(case((SimDetalle.estado == ST_SOLD, 1), else_=0)).label("sims_vendidas"),
+                func.sum(case((SimDetalle.estado == 'available', 1), else_=0)).label("sims_disponibles"),
+                func.sum(case((SimDetalle.estado == 'recargado', 1), else_=0)).label("sims_recargadas"),
+                func.sum(case((SimDetalle.estado == 'vendido', 1), else_=0)).label("sims_vendidas"),
             )
             .join(SimDetalle, SimDetalle.lote_id == SimLote.id)
             .group_by(

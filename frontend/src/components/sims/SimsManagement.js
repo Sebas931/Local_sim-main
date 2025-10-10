@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { simsService } from '../../services/simsService';
 import { useApp } from '../../context/AppContext';
 
@@ -17,6 +18,17 @@ const SimsManagement = () => {
 
   // File upload
   const [uploadFile, setUploadFile] = useState(null);
+
+  // Filtro de búsqueda
+  const [filtroNumero, setFiltroNumero] = useState('');
+
+  // Form state for creating individual SIM
+  const [simForm, setSimForm] = useState({
+    loteId: '',
+    operador: 'Claro',
+    numeroLinea: '',
+    iccid: ''
+  });
 
   // Helper para traducir estados
   const traducirEstado = (estado) => {
@@ -33,6 +45,21 @@ const SimsManagement = () => {
     fetchLotes();
     fetchDashboardStats();
   }, []);
+
+  // Cargar SIMs de todos los lotes cuando hay filtro activo
+  useEffect(() => {
+    const cargarSimsParaFiltro = async () => {
+      if (filtroNumero && filtroNumero.length >= 3) {
+        // Cargar SIMs de todos los lotes para filtrar
+        for (const lote of lotes) {
+          if (!simsPorLote[lote.lote_id]) {
+            await fetchSimsPorLote(lote.lote_id);
+          }
+        }
+      }
+    };
+    cargarSimsParaFiltro();
+  }, [filtroNumero, lotes]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -77,6 +104,25 @@ const SimsManagement = () => {
     }
   };
 
+  // Función para verificar si un lote tiene SIMs que coinciden con el filtro
+  const loteContieneSimsFiltradas = (loteId) => {
+    if (!filtroNumero || filtroNumero.length < 3) return true;
+
+    const sims = simsPorLote[loteId] || [];
+    return sims.some(sim =>
+      sim.numero_linea?.toLowerCase().includes(filtroNumero.toLowerCase()) ||
+      sim.iccid?.toLowerCase().includes(filtroNumero.toLowerCase())
+    );
+  };
+
+  // Determinar si un lote debe estar expandido automáticamente por el filtro
+  const debeEstarExpandido = (loteId) => {
+    if (filtroNumero && filtroNumero.length >= 3) {
+      return loteContieneSimsFiltradas(loteId);
+    }
+    return lotesExpandido[loteId];
+  };
+
   const uploadSims = async () => {
     if (!uploadFile) {
       showNotification('Selecciona un archivo', 'error');
@@ -96,6 +142,46 @@ const SimsManagement = () => {
       setUploadFile(null);
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Error al cargar archivo';
+      showNotification(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateSim = async (e) => {
+    e.preventDefault();
+
+    // Validations
+    if (!simForm.loteId || !simForm.operador || !simForm.numeroLinea || !simForm.iccid) {
+      showNotification('Todos los campos son obligatorios', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const result = await simsService.createSimComplete(
+        simForm.loteId,
+        simForm.operador,
+        simForm.numeroLinea,
+        simForm.iccid
+      );
+
+      showNotification(result.message || 'SIM creada exitosamente', 'success');
+
+      // Refresh data
+      await fetchLotes();
+      await fetchDashboardStats();
+
+      // Clear form
+      setSimForm({
+        loteId: '',
+        operador: 'Claro',
+        numeroLinea: '',
+        iccid: ''
+      });
+
+    } catch (error) {
+      const msg = error?.response?.data?.detail || 'Error al crear SIM';
       showNotification(msg, 'error');
     } finally {
       setLoading(false);
@@ -156,10 +242,96 @@ const SimsManagement = () => {
         </Card>
       </div>
 
+      {/* Crear SIM Individual */}
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Plus className="w-5 h-5 text-green-600" />
+            <span>Crear SIM Individual</span>
+          </CardTitle>
+          <CardDescription>
+            Agregue una SIM individual al inventario. Si el lote no existe, se creará automáticamente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreateSim} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="loteId">Lote ID</Label>
+                <Input
+                  id="loteId"
+                  type="text"
+                  placeholder="Ej: LOTE001"
+                  value={simForm.loteId}
+                  onChange={(e) => setSimForm({ ...simForm, loteId: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="operador">Operador</Label>
+                <select
+                  id="operador"
+                  value={simForm.operador}
+                  onChange={(e) => setSimForm({ ...simForm, operador: e.target.value })}
+                  disabled={loading}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="Claro">Claro</option>
+                  <option value="Movistar">Movistar</option>
+                  <option value="Tigo">Tigo</option>
+                  <option value="WOM">WOM</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="numeroLinea">Número de Línea</Label>
+                <Input
+                  id="numeroLinea"
+                  type="text"
+                  placeholder="Ej: 3001234567"
+                  value={simForm.numeroLinea}
+                  onChange={(e) => setSimForm({ ...simForm, numeroLinea: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="iccid">ICCID</Label>
+                <Input
+                  id="iccid"
+                  type="text"
+                  placeholder="Ej: 89570..."
+                  value={simForm.iccid}
+                  onChange={(e) => setSimForm({ ...simForm, iccid: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <Button type="submit" disabled={loading} className="w-full md:w-auto">
+              {loading ? 'Creando...' : 'Crear SIM'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       {/* Listado de Lotes */}
       <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm mt-6">
         <CardHeader>
           <CardTitle>Listado de Lotes</CardTitle>
+          <div className="mt-4">
+            <Input
+              type="text"
+              placeholder="Buscar por número de línea o ICCID (mín. 3 caracteres)..."
+              value={filtroNumero}
+              onChange={(e) => setFiltroNumero(e.target.value)}
+              className="max-w-md"
+            />
+            {filtroNumero && filtroNumero.length < 3 && (
+              <p className="text-sm text-gray-500 mt-1">Escribe al menos 3 caracteres para buscar</p>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {(lotes || []).length === 0 ? (
@@ -179,12 +351,22 @@ const SimsManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {(lotes || []).map((lote) => (
+                {(lotes || [])
+                  .filter(lote => {
+                    // Si hay filtro activo (≥3 caracteres), solo mostrar lotes con coincidencias
+                    if (filtroNumero && filtroNumero.length >= 3) {
+                      return loteContieneSimsFiltradas(lote.lote_id);
+                    }
+                    return true;
+                  })
+                  .map((lote) => {
+                    const expandido = debeEstarExpandido(lote.lote_id);
+                    return (
                   <React.Fragment key={lote.lote_id}>
                     <tr>
                       <td className="border px-2 py-1">
                         <button onClick={() => toggleLoteExpandido(lote.lote_id)}>
-                          {lotesExpandido[lote.lote_id] ? "−" : "➕"}
+                          {expandido ? "−" : "➕"}
                         </button>{" "}
                         {lote.lote_id}
                       </td>
@@ -196,7 +378,7 @@ const SimsManagement = () => {
                       <td className="border px-2 py-1 text-blue-600">{lote.sims_recargadas}</td>
                       <td className="border px-2 py-1 text-red-600">{lote.sims_vendidas}</td>
                     </tr>
-                    {lotesExpandido[lote.lote_id] && simsPorLote[lote.lote_id] && (
+                    {expandido && simsPorLote[lote.lote_id] && (
                       <tr>
                         <td colSpan="8" className="border px-2 py-1 bg-gray-50">
                           <table className="w-full text-xs">
@@ -207,10 +389,17 @@ const SimsManagement = () => {
                                 <th className="px-2 py-1">Plan Asignado</th>
                                 <th className="px-2 py-1">Estado</th>
                                 <th className="px-2 py-1">Fecha Registro</th>
+                                <th className="px-2 py-1">Fecha Venta</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {(simsPorLote[lote.lote_id] || []).map((sim) => (
+                              {(simsPorLote[lote.lote_id] || [])
+                                .filter(sim => {
+                                  if (!filtroNumero) return true;
+                                  return sim.numero_linea?.toLowerCase().includes(filtroNumero.toLowerCase()) ||
+                                         sim.iccid?.toLowerCase().includes(filtroNumero.toLowerCase());
+                                })
+                                .map((sim) => (
                                 <tr key={sim.id}>
                                   <td className="px-2 py-1">{sim.numero_linea}</td>
                                   <td className="px-2 py-1">{sim.iccid}</td>
@@ -218,6 +407,15 @@ const SimsManagement = () => {
                                   <td className="px-2 py-1">{traducirEstado(sim.estado)}</td>
                                   <td className="border px-2 py-1">
                                     {sim.fecha_registro ? new Date(sim.fecha_registro).toLocaleString("es-CO", {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    }) : '—'}
+                                  </td>
+                                  <td className="border px-2 py-1">
+                                    {sim.fecha_venta ? new Date(sim.fecha_venta).toLocaleString("es-CO", {
                                       day: '2-digit',
                                       month: '2-digit',
                                       year: 'numeric',
@@ -233,7 +431,8 @@ const SimsManagement = () => {
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
