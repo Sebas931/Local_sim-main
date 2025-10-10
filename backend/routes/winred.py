@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import random
 import aiohttp
 from fastapi import APIRouter, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -517,9 +517,9 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
             fallidas.append({"msisdn": msisdn, "error": last_error})
             print(f"   ❌ FALLO DEFINITIVO para {msisdn} después de 3 intentos")
 
-        # Delay entre SIMs para evitar rate limiting (1.5 segundos)
+        # Delay entre SIMs para evitar rate limiting (2 segundos)
         if idx < len(sims):  # No hacer delay después de la última
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2.0)
 
     # Resumen final
     print(f"\n{'='*80}")
@@ -553,6 +553,118 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
         "failed": fallidas,
         "siigo_code": siigo_code,
     }
+
+@router.get("/topup_lote_stream")
+async def topup_lote_stream(
+    lote_id: str = Query(...),
+    product_id: int = Query(...),
+    amount: int = Query(0),
+    sell_from: str = Query("S"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Recarga un lote de SIMs con progreso en tiempo real mediante Server-Sent Events (SSE).
+    El cliente debe escuchar eventos del tipo 'message' para recibir actualizaciones.
+    """
+    async def event_generator():
+        try:
+            res = await db.execute(select(SimDetalle).where(SimDetalle.lote_id == lote_id))
+            sims: List[SimDetalle] = list(res.scalars().all())
+
+            if not sims:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Lote sin SIMs'})}\n\n"
+                return
+
+            exitosas_msisdns: List[str] = []
+            fallidas: List[Dict[str, Any]] = []
+
+            # Evento inicial
+            yield f"data: {json.dumps({'type': 'start', 'total': len(sims), 'lote_id': lote_id})}\n\n"
+
+            for idx, sim in enumerate(sims, 1):
+                msisdn = _as_str(sim.numero_linea)
+
+                # Evento: procesando SIM
+                yield f"data: {json.dumps({'type': 'processing', 'index': idx, 'total': len(sims), 'msisdn': msisdn})}\n\n"
+
+                data = {
+                    "product_id": _as_str(product_id),
+                    "amount": _as_str(amount),
+                    "suscriber": msisdn,
+                    "sell_from": _as_str(sell_from),
+                }
+
+                # Retry logic: hasta 3 intentos
+                success = False
+                last_error = None
+
+                for attempt in range(1, 4):
+                    try:
+                        if attempt > 1:
+                            yield f"data: {json.dumps({'type': 'retry', 'msisdn': msisdn, 'attempt': attempt})}\n\n"
+                            await asyncio.sleep(2 * (attempt - 1))
+
+                        resp = await winred.post_textplain_body("topup", data)
+                        ok = (resp.get("result", {}) or {}).get("success") is True or resp.get("success") is True
+
+                        if ok:
+                            exitosas_msisdns.append(msisdn)
+
+                            # Persistir en sim_detalle
+                            try:
+                                await _apply_topup_to_sim_detalle(
+                                    db,
+                                    msisdn=msisdn,
+                                    winred_product_id=_as_str(product_id),
+                                )
+                            except Exception as e:
+                                print(f"⚠️ Error persistencia: {e}")
+
+                            # Evento: éxito
+                            yield f"data: {json.dumps({'type': 'success', 'msisdn': msisdn, 'index': idx, 'total': len(sims)})}\n\n"
+                            success = True
+                            break
+                        else:
+                            msg = resp.get("result", {}).get("message", "Sin mensaje")
+                            last_error = msg
+
+                            if "firma" in msg.lower() and attempt < 3:
+                                continue
+                            else:
+                                break
+
+                    except Exception as e:
+                        last_error = str(e)
+                        if attempt < 3:
+                            continue
+
+                # Si no fue exitoso después de todos los intentos
+                if not success:
+                    fallidas.append({"msisdn": msisdn, "error": last_error})
+                    yield f"data: {json.dumps({'type': 'error', 'msisdn': msisdn, 'index': idx, 'total': len(sims), 'error': str(last_error)})}\n\n"
+
+                # Delay entre SIMs
+                if idx < len(sims):
+                    await asyncio.sleep(2.0)
+
+            # Actualizar plan en el lote
+            q = await db.execute(
+                select(PlanHomologacion.siigo_code).where(PlanHomologacion.winred_product_id == str(product_id))
+            )
+            row = q.first()
+            siigo_code = row[0] if row else None
+
+            if siigo_code:
+                await db.execute(update(SimLote).where(SimLote.id == lote_id).values(plan_asignado=siigo_code))
+                await db.commit()
+
+            # Evento final
+            yield f"data: {json.dumps({'type': 'complete', 'processed': len(sims), 'successful': len(exitosas_msisdns), 'failed': len(fallidas), 'failed_details': fallidas, 'siigo_code': siigo_code})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # ====== DEBUG ======
 @router.get("/debug/sign")
