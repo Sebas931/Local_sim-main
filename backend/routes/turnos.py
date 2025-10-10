@@ -33,11 +33,12 @@ logger = logging.getLogger("turnos")
 
 async def _calcular_inventario_sistema_por_plan(db: AsyncSession, plan: str) -> int:
     """Calcula el inventario real disponible en el sistema para un plan específico."""
+    # Disponibles: incluye 'available' Y 'recargado'
     result = await db.execute(
         select(func.count(SimDetalle.id))
         .join(SimLote, SimDetalle.lote_id == SimLote.id)
         .where(
-            SimDetalle.estado == "available",
+            SimDetalle.estado.in_(["available", "recargado"]),
             SimDetalle.plan_asignado == plan
         )
     )
@@ -797,10 +798,11 @@ async def planes_sim_disponibles(
     current_user: User = Depends(get_current_user)
 ):
     """Obtiene los planes de SIMs disponibles en el sistema."""
+    # Disponibles: incluye 'available' Y 'recargado'
     result = await db.execute(
         select(SimDetalle.plan_asignado, func.count(SimDetalle.id).label("cantidad"))
         .where(
-            SimDetalle.estado == "available",
+            SimDetalle.estado.in_(["available", "recargado"]),
             SimDetalle.plan_asignado.isnot(None)
         )
         .group_by(SimDetalle.plan_asignado)

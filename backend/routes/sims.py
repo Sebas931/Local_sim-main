@@ -478,8 +478,9 @@ async def dashboard_stats(db: AsyncSession = Depends(get_async_session)):
 
     # ===== SIMS / STOCK =====
     total_sims = (await db.execute(select(func.count()).select_from(SimDetalle))).scalar() or 0
+    # Disponibles: incluye 'available' Y 'recargado'
     sims_available = (await db.execute(
-        select(func.count()).select_from(SimDetalle).where(SimDetalle.estado == ST_AVAILABLE)
+        select(func.count()).select_from(SimDetalle).where(SimDetalle.estado.in_([ST_AVAILABLE, ST_RECHARGED]))
     )).scalar() or 0
     sims_sold = (await db.execute(
         select(func.count()).select_from(SimDetalle).where(SimDetalle.estado == ST_SOLD)
@@ -490,10 +491,11 @@ async def dashboard_stats(db: AsyncSession = Depends(get_async_session)):
         # Tomamos el plan de la SIM; si no lo tiene, usamos el plan del lote
     plan_expr = func.coalesce(SimDetalle.plan_asignado, SimLote.plan_asignado)
 
+    # Disponibles por plan: incluye 'available' Y 'recargado'
     por_plan_rows = (await db.execute(
         select(plan_expr.label("plan"), func.count(SimDetalle.id))
         .join(SimLote, SimLote.id == SimDetalle.lote_id)
-        .where(SimDetalle.estado == ST_AVAILABLE)
+        .where(SimDetalle.estado.in_([ST_AVAILABLE, ST_RECHARGED]))
         .group_by(plan_expr)
     )).all()
 

@@ -172,12 +172,13 @@ async def get_sims_disponibles_reemplazo(
 ):
     """Obtener SIMs disponibles para usar como reemplazo"""
     try:
+        # Disponibles: incluye 'available' Y 'recargado'
         query = select(SimDetalle).options(
             joinedload(SimDetalle.lote)
         ).where(
             and_(
                 SimDetalle.vendida == False,
-                SimDetalle.estado == SimStatus.available,
+                SimDetalle.estado.in_([SimStatus.available, SimStatus.recargado]),
                 or_(
                     SimDetalle.iccid.ilike(f"%{search}%"),
                     SimDetalle.numero_linea.ilike(f"%{search}%")
@@ -279,7 +280,8 @@ async def _procesar_intercambio(devolucion_data, sale, sim_defectuosa, turno_act
     if not sim_reemplazo:
         raise HTTPException(status_code=404, detail="SIM de reemplazo no encontrada")
 
-    if sim_reemplazo.vendida or sim_reemplazo.estado != SimStatus.available:
+    # Disponibles: incluye 'available' Y 'recargado'
+    if sim_reemplazo.vendida or sim_reemplazo.estado not in [SimStatus.available, SimStatus.recargado]:
         raise HTTPException(status_code=400, detail="La SIM de reemplazo debe estar disponible")
 
     # Verificar que no sean la misma SIM
