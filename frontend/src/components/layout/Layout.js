@@ -73,61 +73,69 @@ const Layout = ({ children, activeTab, onTabChange }) => {
               </Button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50">
-                  <div className="py-1">
-                    <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                      {user?.email}
-                    </div>
+                <>
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                    <div className="py-1">
+                      <div className="px-4 py-2 text-sm text-gray-700 border-b">
+                        {user?.email}
+                      </div>
 
-                    {/* Turno Status and Actions */}
-                    <div className="px-4 py-2 text-xs text-gray-500 border-b bg-gray-50">
+                      {/* Turno Status and Actions */}
+                      <div className="px-4 py-2 text-xs text-gray-500 border-b bg-gray-50">
+                        {turnoAbierto ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            Turno Activo: {turnoAbierto.id?.slice(-8)}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            Sin turno activo
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Turno Actions */}
                       {turnoAbierto ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          Turno Activo: {turnoAbierto.id?.slice(-8)}
-                        </div>
+                        <button
+                          onClick={handleCerrarTurno}
+                          disabled={loadingTurno}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                        >
+                          <Square className="h-4 w-4" />
+                          Cerrar Turno
+                        </button>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          Sin turno activo
-                        </div>
+                        <button
+                          onClick={handleAbrirTurno}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                        >
+                          <Play className="h-4 w-4" />
+                          Abrir Turno
+                        </button>
                       )}
-                    </div>
 
-                    {/* Turno Actions */}
-                    {turnoAbierto ? (
-                      <button
-                        onClick={handleCerrarTurno}
-                        disabled={loadingTurno}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50"
-                      >
-                        <Square className="h-4 w-4" />
-                        Cerrar Turno
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleAbrirTurno}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                      >
-                        <Play className="h-4 w-4" />
-                        Abrir Turno
-                      </button>
-                    )}
-
-                    <div className="border-t">
-                      <button
-                        onClick={() => {
-                          logout();
-                          setShowUserMenu(false);
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Cerrar Sesión
-                      </button>
+                      <div className="border-t">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            logout();
+                          }}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 cursor-pointer"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Cerrar Sesión
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -206,7 +214,7 @@ const Layout = ({ children, activeTab, onTabChange }) => {
       {/* Click outside to close user menu */}
       {showUserMenu && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-30"
           onClick={() => setShowUserMenu(false)}
         />
       )}

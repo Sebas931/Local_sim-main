@@ -19,15 +19,39 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check for existing token on app start
     const token = localStorage.getItem('token');
+
     if (token) {
-      // For now, if there's a token, assume user is logged in
-      // In a real app, you'd want to verify the token
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      if (userData.user) {
-        setUser(userData.user);
-        setModules(userData.modules || []);
+      const userDataStr = localStorage.getItem('userData');
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData.user) {
+            setUser(userData.user);
+            setModules(userData.modules || []);
+          } else {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            setUser(null);
+            setModules([]);
+          }
+        } catch (e) {
+          console.error('Error parseando userData:', e);
+          localStorage.removeItem('token');
+          localStorage.removeItem('userData');
+          setUser(null);
+          setModules([]);
+        }
+      } else {
+        localStorage.removeItem('token');
+        setUser(null);
+        setModules([]);
       }
+    } else {
+      setUser(null);
+      setModules([]);
     }
+
     setLoading(false);
   }, []);
 
@@ -92,10 +116,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Solo eliminar claves específicas de autenticación (no tocar PostHog ni otras herramientas)
     localStorage.removeItem('token');
     localStorage.removeItem('userData');
+
     setUser(null);
     setModules([]);
+
+    // Usar setTimeout para asegurar que el estado se actualice antes de recargar
+    setTimeout(() => {
+      window.location.href = '/';
+      window.location.reload(true);
+    }, 100);
   };
 
   const hasModule = (moduleName) => {
