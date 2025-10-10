@@ -556,7 +556,8 @@ const SalesPointOfSale = () => {
     'R5D': 4.99,    // RECARGA / 5 Dias / Claro
     'R30D': 18.99,  // RECARGA / 30 DIAS / Claro
     'ESIM': 4.00,   // ESIM
-    'HT01': 30.00   // MODEM HOTSPOT
+    'HT01': 30.00,  // MODEM HOTSPOT
+    'MAPAV1': 2.99  // RECARGA MAPA V1
   };
 
   const formatPrice = (price, currency = 'COP') => {
@@ -696,9 +697,9 @@ const SalesPointOfSale = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
 
-              {/* Product Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredProducts.slice(0, 7).map((product) => {
+              {/* Product Grid - 4 columnas en pantallas grandes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {filteredProducts.slice(0, 12).map((product) => {
                   if (
                     !product ||
                     typeof product.unit_price !== 'number' ||
