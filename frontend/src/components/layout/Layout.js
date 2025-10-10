@@ -9,7 +9,10 @@ import { turnosService } from '../../services/turnosService';
 const Layout = ({ children, activeTab, onTabChange }) => {
   const { user, logout, hasModule } = useAuth();
   const { turnoAbierto, setTurnoAbierto, showNotification } = useApp();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Sidebar collapsed by default on mobile
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 1024
+  );
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loadingTurno, setLoadingTurno] = useState(false);
 
@@ -38,20 +41,20 @@ const Layout = ({ children, activeTab, onTabChange }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="flex items-center justify-between px-6 py-4">
+      {/* Top Header - Responsive */}
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4">
           {/* Left side */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="lg:hidden"
+              className="lg:hidden p-2"
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-xl font-bold text-gray-900">
+            <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
               Local SIM Colombia
             </h1>
           </div>
@@ -131,15 +134,24 @@ const Layout = ({ children, activeTab, onTabChange }) => {
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
+      <div className="flex relative">
+        {/* Mobile Sidebar Overlay */}
+        {!isSidebarCollapsed && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsSidebarCollapsed(true)}
+          />
+        )}
+
+        {/* Sidebar - Responsive */}
         <aside
-          className={`bg-white shadow-sm border-r transition-all duration-300 relative ${
-            isSidebarCollapsed ? 'w-16' : 'w-64'
-          }`}
+          className={`bg-white shadow-sm border-r transition-all duration-300
+            ${isSidebarCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-16' : 'translate-x-0 w-64'}
+            fixed lg:sticky top-[57px] sm:top-[65px] h-[calc(100vh-57px)] sm:h-[calc(100vh-65px)] z-40 lg:z-auto
+            lg:transition-[width] overflow-y-auto`}
         >
-          {/* Sidebar Toggle Button - positioned at the edge of sidebar */}
-          <div className="absolute -right-3 top-4 z-10">
+          {/* Sidebar Toggle Button - Desktop only */}
+          <div className="hidden lg:block absolute -right-3 top-4 z-10">
             <Button
               variant="outline"
               size="sm"
@@ -154,7 +166,7 @@ const Layout = ({ children, activeTab, onTabChange }) => {
             </Button>
           </div>
 
-          <nav className="p-4 space-y-2">
+          <nav className="p-3 sm:p-4 space-y-1 sm:space-y-2">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.value;
@@ -162,16 +174,22 @@ const Layout = ({ children, activeTab, onTabChange }) => {
               return (
                 <button
                   key={item.value}
-                  onClick={() => onTabChange(item.value)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  onClick={() => {
+                    onTabChange(item.value);
+                    // Close sidebar on mobile after selection
+                    if (window.innerWidth < 1024) {
+                      setIsSidebarCollapsed(true);
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-3 sm:py-2 rounded-lg text-left transition-colors touch-manipulation ${
                     isActive
                       ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
                   }`}
                 >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <Icon className="h-5 w-5 sm:h-5 sm:w-5 flex-shrink-0" />
                   {!isSidebarCollapsed && (
-                    <span className="font-medium">{item.name}</span>
+                    <span className="font-medium text-sm sm:text-base">{item.name}</span>
                   )}
                 </button>
               );
@@ -179,8 +197,8 @@ const Layout = ({ children, activeTab, onTabChange }) => {
           </nav>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6">
+        {/* Main Content - Responsive padding */}
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 w-full lg:ml-0">
           {children}
         </main>
       </div>

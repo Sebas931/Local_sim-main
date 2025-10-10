@@ -114,14 +114,115 @@ input:focus {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
-/* Mobile responsiveness */
+/* ===== MOBILE RESPONSIVENESS ===== */
+
+/* Prevent text selection on touch devices for better UX */
+@media (hover: none) {
+  button, .touch-target {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
+
+/* Touch-friendly minimum sizes */
+.touch-manipulation {
+  touch-action: manipulation;
+  min-height: 44px; /* Apple's recommended minimum */
+}
+
+/* Responsive spacing */
+@media (max-width: 640px) {
+  .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+}
+
+/* Responsive grids */
 @media (max-width: 768px) {
   .grid-cols-3 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
-  
+
   .grid-cols-2 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  /* Force single column on mobile for better readability */
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Responsive tables - Better scrolling */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .table-container table {
+    min-width: 600px;
+  }
+}
+
+/* Responsive card */
+@media (max-width: 640px) {
+  .card {
+    border-radius: 8px;
+    margin: 0.5rem;
+  }
+}
+
+/* Font size adjustments for mobile */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  h3 {
+    font-size: 1.1rem !important;
+  }
+
+  /* Ensure readable text on mobile */
+  body {
+    font-size: 14px;
+  }
+}
+
+/* Better modal/dialog experience on mobile */
+@media (max-width: 640px) {
+  [role="dialog"], .dialog {
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+    margin: 1rem !important;
+  }
+}
+
+/* Improve input experience on mobile */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+}
+
+/* Stack buttons vertically on mobile */
+@media (max-width: 640px) {
+  .button-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .button-group button {
+    width: 100%;
+    margin: 0.25rem 0;
   }
 }
 
