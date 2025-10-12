@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 // Removed Radix Select imports - using native HTML selects
 import { Alert, AlertDescription } from '../ui/alert';
 import { turnosService } from '../../services/turnosService';
+import { usersService } from '../../services/usersService';
 import { useApp } from '../../context/AppContext';
 import InventarioSimForm from './InventarioSimForm';
 
@@ -36,7 +37,23 @@ const InventarioDescuadresView = () => {
     // Load initial data with default filters (last 7 days with discrepancies)
     setFilters(prev => ({ ...prev, dias: '7' }));
     fetchInventarios({ dias: '7', solo_con_descuadres: true });
+    fetchUsuarios();
   }, []);
+
+  const fetchUsuarios = async () => {
+    try {
+      const data = await usersService.getUsers();
+      const usuariosSimplificados = (data || []).map(user => ({
+        id: user.id,
+        name: user.full_name || user.username
+      }));
+      setUsuarios(usuariosSimplificados);
+    } catch (error) {
+      console.error('Error fetching usuarios:', error);
+      // Si falla, intentar extraer usuarios únicos de los inventarios
+      setUsuarios([]);
+    }
+  };
 
   const fetchInventarios = async (customFilters = null) => {
     try {
@@ -50,7 +67,20 @@ const InventarioDescuadresView = () => {
 
       const data = await turnosService.getInventariosDescuadres(cleanFilters);
       setInventarios(data.inventarios || []);
-      setUsuarios(data.usuarios || []);
+
+      // Si el backend devuelve usuarios, actualizarlos
+      if (data.usuarios && data.usuarios.length > 0) {
+        setUsuarios(data.usuarios);
+      }
+      // Si no hay usuarios cargados aún, extraerlos de los inventarios
+      else if (usuarios.length === 0 && data.inventarios && data.inventarios.length > 0) {
+        const usuariosUnicos = [...new Set(data.inventarios.map(inv => inv.usuario))].filter(Boolean);
+        const usuariosSimplificados = usuariosUnicos.map((nombre, index) => ({
+          id: index + 1,
+          name: nombre
+        }));
+        setUsuarios(usuariosSimplificados);
+      }
 
       if (!data.inventarios || data.inventarios.length === 0) {
         showNotification(
@@ -136,7 +166,7 @@ const InventarioDescuadresView = () => {
 
   const getDifferenceColor = (diferencia) => {
     if (diferencia === 0) return 'text-green-600';
-    if (diferencia > 0) return 'text-blue-600';
+    if (diferencia > 0) return 'text-localsim-teal-600';
     return 'text-red-600';
   };
 
@@ -151,15 +181,19 @@ const InventarioDescuadresView = () => {
     return diferencia > 0 ? `+${diferencia}` : `${diferencia}`;
   };
 
+  // Calculate statistics
+  const totalDescuadres = inventarios.filter(inv => inv.tiene_descuadre).length;
+  const totalAsesores = new Set(inventarios.map(inv => inv.usuario)).size;
+  const totalPlanes = new Set(inventarios.map(inv => inv.plan)).size;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Package className="h-6 w-6" />
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 bg-clip-text text-transparent">
             Control de Inventario de SIMs
-          </h2>
+          </h1>
           <p className="text-gray-600 mt-1">
             Seguimiento detallado de SIMs por turno: Apertura → Ventas → Esperado vs Real → Descuadres
           </p>
@@ -170,7 +204,7 @@ const InventarioDescuadresView = () => {
             onClick={exportToCSV}
             variant="outline"
             disabled={inventarios.length === 0}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-localsim-teal-50 hover:text-localsim-teal-600 hover:border-localsim-teal-300 transition-colors"
           >
             <Download className="h-4 w-4" />
             Exportar CSV
@@ -178,7 +212,7 @@ const InventarioDescuadresView = () => {
           <Button
             onClick={() => fetchInventarios()}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 hover:from-localsim-teal-700 hover:to-localsim-teal-600 text-white shadow-lg hover:shadow-xl transition-all"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -186,18 +220,69 @@ const InventarioDescuadresView = () => {
         </div>
       </div>
 
+      {/* KPIs */}
+      {inventarios.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-500 to-red-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Descuadres Detectados</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{totalDescuadres}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <AlertTriangle className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-500 to-indigo-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Asesores</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{totalAsesores}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <Users className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-purple-500 to-purple-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Planes Afectados</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{totalPlanes}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <Package className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros de Búsqueda
-          </CardTitle>
-          <p className="text-sm text-gray-600">
-            Filtra por período, fechas específicas o asesor. Los descuadres se resaltan automáticamente.
-          </p>
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-cyan-50 border-b">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-br from-localsim-teal-600 to-localsim-teal-500 p-2 rounded-lg">
+              <Filter className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-localsim-teal-700">Filtros de Búsqueda</CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Filtra por período, fechas específicas o asesor. Los descuadres se resaltan automáticamente.
+              </p>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Período rápido */}
             <div>
@@ -249,7 +334,11 @@ const InventarioDescuadresView = () => {
               </Label>
             </div>
 
-            <Button onClick={() => fetchInventarios()} disabled={loading}>
+            <Button
+              onClick={() => fetchInventarios()}
+              disabled={loading}
+              className="bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 hover:from-localsim-teal-700 hover:to-localsim-teal-600 text-white"
+            >
               <Filter className="h-4 w-4 mr-2" />
               Aplicar Filtros
             </Button>
@@ -258,91 +347,65 @@ const InventarioDescuadresView = () => {
       </Card>
 
       {/* Results */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Resultados ({inventarios.length})
-          </CardTitle>
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-cyan-50 border-b">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-br from-localsim-teal-600 to-localsim-teal-500 p-2 rounded-lg">
+              <Package className="w-5 h-5 text-white" />
+            </div>
+            <CardTitle className="text-localsim-teal-700">Resultados ({inventarios.length})</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-500">Cargando inventarios...</p>
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-localsim-teal-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 text-lg">Cargando inventarios...</p>
             </div>
           ) : inventarios.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No se encontraron inventarios con los filtros aplicados</p>
+            <div className="text-center py-16">
+              <div className="bg-gradient-to-br from-localsim-teal-100 to-cyan-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="w-10 h-10 text-localsim-teal-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No se encontraron inventarios
+              </h3>
+              <p className="text-gray-600">Ajusta los filtros para ver resultados</p>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Leyenda de colores */}
-              <Alert className="mb-4 bg-blue-50 border-blue-200">
+              <Alert className="mb-6 bg-gradient-to-r from-localsim-teal-50 to-cyan-50 border-localsim-teal-200">
                 <AlertDescription>
                   <div className="flex flex-wrap items-center gap-4 text-sm">
-                    <span className="font-medium">Leyenda:</span>
+                    <span className="font-semibold text-localsim-teal-700">Leyenda:</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-blue-100 rounded"></div>
-                      <span>Inicial</span>
+                      <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded shadow-sm"></div>
+                      <span className="font-medium">Inicial</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-orange-100 rounded"></div>
-                      <span>Vendidas</span>
+                      <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded shadow-sm"></div>
+                      <span className="font-medium">Vendidas</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-purple-100 rounded"></div>
-                      <span>Esperado</span>
+                      <div className="w-4 h-4 bg-purple-100 border border-purple-300 rounded shadow-sm"></div>
+                      <span className="font-medium">Esperado</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-gray-100 rounded"></div>
-                      <span>Real</span>
+                      <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded shadow-sm"></div>
+                      <span className="font-medium">Real</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-green-100 rounded"></div>
-                      <span>✓ Sin descuadre</span>
+                      <div className="w-4 h-4 bg-green-100 border border-green-300 rounded shadow-sm"></div>
+                      <span className="font-medium">✓ Sin descuadre</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-red-100 rounded"></div>
-                      <span>⚠ Con descuadre</span>
+                      <div className="w-4 h-4 bg-red-100 border border-red-300 rounded shadow-sm"></div>
+                      <span className="font-medium">⚠ Con descuadre</span>
                     </div>
                   </div>
                 </AlertDescription>
               </Alert>
-
-              {/* Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <span className="font-medium text-red-800">Descuadres Detectados</span>
-                  </div>
-                  <p className="text-2xl font-bold text-red-600 mt-2">
-                    {inventarios.filter(inv => inv.tiene_descuadre).length}
-                  </p>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-blue-800">Asesores en el Período</span>
-                  </div>
-                  <p className="text-2xl font-bold text-blue-600 mt-2">
-                    {new Set(inventarios.map(inv => inv.usuario)).size}
-                  </p>
-                </div>
-
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-5 w-5 text-purple-600" />
-                    <span className="font-medium text-purple-800">Planes Afectados</span>
-                  </div>
-                  <p className="text-2xl font-bold text-purple-600 mt-2">
-                    {new Set(inventarios.map(inv => inv.plan)).size}
-                  </p>
-                </div>
-              </div>
 
               {/* Inventory list - Grouped by Turno */}
               <div className="space-y-4">
@@ -362,20 +425,20 @@ const InventarioDescuadresView = () => {
                   }, {});
 
                   return Object.values(turnosAgrupados).map((turno) => (
-                    <Card key={turno.turno_id} className="border-2">
-                      <CardHeader className="bg-gray-50 pb-3">
+                    <Card key={turno.turno_id} className="border-2 border-gray-200 shadow-lg hover:shadow-xl transition-all hover:border-localsim-teal-200">
+                      <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 pb-3 border-b">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Badge className="bg-purple-100 text-purple-800 text-base px-3 py-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 text-base px-3 py-1">
                               Turno #{String(turno.turno_id).slice(-8)}
                             </Badge>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <Users className="h-4 w-4" />
-                              <span className="font-medium">{turno.usuario}</span>
+                            <div className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                              <Users className="h-4 w-4 text-localsim-teal-600" />
+                              <span className="font-medium text-gray-900">{turno.usuario}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <Calendar className="h-4 w-4" />
-                              <span>{new Date(turno.fecha_registro).toLocaleString('es-CO', {
+                            <div className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                              <Calendar className="h-4 w-4 text-gray-500" />
+                              <span className="text-gray-700">{new Date(turno.fecha_registro).toLocaleString('es-CO', {
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric',
@@ -384,7 +447,10 @@ const InventarioDescuadresView = () => {
                               })}</span>
                             </div>
                           </div>
-                          <Badge variant={turno.inventarios.some(inv => inv.tiene_descuadre) ? 'destructive' : 'default'}>
+                          <Badge className={turno.inventarios.some(inv => inv.tiene_descuadre)
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-0'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0'
+                          }>
                             {turno.inventarios.filter(inv => inv.tiene_descuadre).length} descuadre(s)
                           </Badge>
                         </div>
@@ -421,7 +487,7 @@ const InventarioDescuadresView = () => {
                                       <div className="text-center">
                                         <div className="text-xs text-gray-500 mb-1">Inicial</div>
                                         <div className="bg-blue-100 rounded-lg px-4 py-2">
-                                          <div className="font-bold text-2xl text-blue-700">{inventario.cantidad_inicial_reportada || 0}</div>
+                                          <div className="font-bold text-2xl text-localsim-teal-700">{inventario.cantidad_inicial_reportada || 0}</div>
                                         </div>
                                       </div>
 
@@ -505,12 +571,12 @@ const InventarioDescuadresView = () => {
                                 </div>
 
                                 <Button
-                                  variant="outline"
                                   size="sm"
                                   onClick={() => {
                                     setSelectedInventario(inventario);
                                     setShowDetails(true);
                                   }}
+                                  className="bg-gradient-to-r from-localsim-teal-500 to-localsim-teal-600 hover:from-localsim-teal-600 hover:to-localsim-teal-700 text-white"
                                 >
                                   Ver Detalle
                                 </Button>

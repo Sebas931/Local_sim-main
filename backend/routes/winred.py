@@ -66,10 +66,10 @@ def _filter_allowed_packages_in_resp(resp: dict) -> dict:
         if isinstance(resp, dict):
             resp.setdefault("data", {})["packages"] = filtered
             resp["data"]["count"] = len(filtered)
-        print("🎯 allowed ids:", sorted(list(WINRED_ALLOWED_IDS)))
-        print("✅ ids filtrados:", [str(p.get("product_id")) for p in filtered])
+        print("[TARGET] allowed ids:", sorted(list(WINRED_ALLOWED_IDS)))
+        print("[OK] ids filtrados:", [str(p.get("product_id")) for p in filtered])
     except Exception as e:
-        print("⚠️ No se pudo filtrar paquetes permitidos:", e)
+        print("[WARNING] No se pudo filtrar paquetes permitidos:", e)
     return resp
 
 def _as_str(x) -> str:
@@ -88,7 +88,7 @@ async def _apply_topup_to_sim_detalle(
       - fecha_ultima_recarga = now()
     Retorna cuántas filas fueron actualizadas.
     """
-    print(f"\n🔍 _apply_topup_to_sim_detalle - msisdn={msisdn}, winred_product_id={winred_product_id}")
+    print(f"\n[SEARCH] _apply_topup_to_sim_detalle - msisdn={msisdn}, winred_product_id={winred_product_id}")
 
     # 1) buscar siigo_code por product_id de Winred
     q = await db.execute(
@@ -99,12 +99,12 @@ async def _apply_topup_to_sim_detalle(
     row = q.first()
     siigo_code = row[0] if row else None
 
-    print(f"   📋 Homologación encontrada: siigo_code={siigo_code}")
+    print(f"   [DOC] Homologación encontrada: siigo_code={siigo_code}")
 
     if not siigo_code:
         # si no hay homologación, no hacemos nada para no grabar código vacío
-        print(f"   ⚠️ NO SE ENCONTRÓ HOMOLOGACIÓN para winred_product_id={winred_product_id}")
-        print(f"   ⚠️ La SIM NO será actualizada. Verifica que exista en la tabla plan_homologacion")
+        print(f"   [WARNING] NO SE ENCONTRÓ HOMOLOGACIÓN para winred_product_id={winred_product_id}")
+        print(f"   [WARNING] La SIM NO será actualizada. Verifica que exista en la tabla plan_homologacion")
         return 0
 
     # 2) normaliza msisdn (solo dígitos)
@@ -115,7 +115,7 @@ async def _apply_topup_to_sim_detalle(
     else:
         last10 = msisdn
 
-    print(f"   📞 MSISDN normalizado: original={msisdn_original}, normalizado={msisdn}, last10={last10}")
+    print(f"   [PHONE] MSISDN normalizado: original={msisdn_original}, normalizado={msisdn}, last10={last10}")
 
     # 3) actualiza por coincidencia exacta; si tienes números con prefijo país en DB,
     #    este OR igual intenta por últimos 10 dígitos.
@@ -138,12 +138,12 @@ async def _apply_topup_to_sim_detalle(
     await db.commit()
 
     rowcount = res.rowcount or 0
-    print(f"   ✅ Filas actualizadas: {rowcount}")
+    print(f"   [OK] Filas actualizadas: {rowcount}")
 
     if rowcount == 0:
-        print(f"   ⚠️ NO SE ACTUALIZÓ NINGUNA FILA. Verifica que exista una SIM con numero_linea={msisdn} o {last10}")
+        print(f"   [WARNING] NO SE ACTUALIZÓ NINGUNA FILA. Verifica que exista una SIM con numero_linea={msisdn} o {last10}")
     else:
-        print(f"   ✅ SIM actualizada correctamente: plan={siigo_code}, estado=recargado")
+        print(f"   [OK] SIM actualizada correctamente: plan={siigo_code}, estado=recargado")
 
     return rowcount
 
@@ -233,7 +233,7 @@ class WinredClient:
         async with aiohttp.ClientSession(auth=auth, timeout=self.timeout) as s:
             async with s.post(url, headers=headers, data=body_str.encode("utf-8"), ssl=True) as r:
                 text = await r.text()
-                print(f"⬅️ Winred RESP {service} text/plain status={r.status} body={text[:500]}")
+                print(f"[<--] Winred RESP {service} text/plain status={r.status} body={text[:500]}")
                 if r.status in (200, 201):
                     try:
                         resp = json.loads(text)
@@ -281,7 +281,7 @@ class WinredClient:
                     req_id = payload["header"]["request_id"]
                     url = f"{self.base_url}/{svc.strip('/')}"
                     try:
-                        print(f"➡️ Winred POST {svc} mode={tag} req_id={req_id} data={data}")
+                        print(f"[-->] Winred POST {svc} mode={tag} req_id={req_id} data={data}")
                         async with session.post(
                             url,
                             data=json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
@@ -289,7 +289,7 @@ class WinredClient:
                             skip_auto_headers={"Content-Type", "Accept"},
                         ) as r:
                             text = await r.text()
-                            print(f"⬅️ Winred RESP {svc} mode={tag} status={r.status} body={text[:500]}")
+                            print(f"[<--] Winred RESP {svc} mode={tag} status={r.status} body={text[:500]}")
                             if r.status in (404, 415):
                                 last_err = f"Winred HTTP {r.status} en {svc} (probar siguiente variante/ruta)"
                                 continue
@@ -356,7 +356,7 @@ async def get_packages(product_parent_id: int = Query(1, ge=0, description="0=to
         else:
             raise HTTPException(status_code=502, detail="Firma inválida en modo JSON")
     except Exception as e_json:
-        print("ℹ️ /packages fallback a text/plain por:", e_json)
+        print("[INFO] /packages fallback a text/plain por:", e_json)
 
         # 2) Fallback text/plain (igual a topup)
         #    Probamos ambas rutas porque a veces el backend cambia el casing.
@@ -382,17 +382,82 @@ async def get_packages(product_parent_id: int = Query(1, ge=0, description="0=to
         resp["data"]["count"] = len(pkgs)
         resp.setdefault("result", {}).setdefault("success", True)
     except Exception as e:
-        print("⚠️ postproc paquetes:", e)
+        print("[WARNING] postproc paquetes:", e)
 
     return JSONResponse(content=resp, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
 @router.get("/balance")
-async def get_balance(suscriber: Optional[str] = None):
-    target = suscriber or WINRED_PROBE_SUBSCRIBER
-    if not target:
-        return {"success": True, "data": {"balance": None, "discount": None}, "message": "No probe suscriber configured"}
-    # querytx (modo PHP): data solo con 'suscriber'
-    return await winred.post_textplain_body("querytx", {"suscriber": str(target)})
+async def get_balance(suscriber: Optional[str] = None, db: AsyncSession = Depends(get_async_session)):
+    """
+    Obtiene el balance de la cuenta Winred.
+
+    Según la documentación de Winred, el servicio 'querytx' requiere un parámetro 'suscriber',
+    pero la respuesta devuelve el balance de la CUENTA Winred (no del suscriptor específico).
+
+    Si no se proporciona un suscriber, se consulta uno de la base de datos automáticamente.
+    """
+    # Determinar el suscriber a usar para la consulta
+    target_suscriber = suscriber
+
+    if not target_suscriber:
+        # Si no se proporcionó, usar WINRED_PROBE_SUBSCRIBER del .env
+        target_suscriber = WINRED_PROBE_SUBSCRIBER
+
+    if not target_suscriber:
+        # Si tampoco está configurado, buscar un número de la base de datos
+        print("[IDEA] No hay suscriber configurado, buscando una SIM en la base de datos...")
+        try:
+            from models import SimDetalle
+            result = await db.execute(
+                select(SimDetalle.numero_linea)
+                .where(SimDetalle.numero_linea.isnot(None))
+                .limit(1)
+            )
+            sim = result.scalar_one_or_none()
+            if sim:
+                target_suscriber = sim
+                print(f"[OK] Usando número de SIM: {target_suscriber}")
+        except Exception as e:
+            print(f"[WARNING] No se pudo consultar SIM de la BD: {e}")
+
+    if not target_suscriber:
+        # Último recurso: usar el USER_ID
+        target_suscriber = WINRED_USER_ID
+        print(f"[WARNING] Usando USER_ID como fallback: {target_suscriber}")
+
+    print(f"\n{'='*80}")
+    print(f"[MONEY] CONSULTANDO BALANCE DE CUENTA WINRED")
+    print(f"   Usando suscriber: {target_suscriber}")
+    print(f"{'='*80}\n")
+
+    try:
+        # Según documentación Winred: querytx con cualquier suscriber devuelve el balance de la CUENTA
+        resp = await winred.post_textplain_body("querytx", {"suscriber": str(target_suscriber)})
+
+        print(f"[OK] Balance obtenido exitosamente")
+        print(f"[CHART] Respuesta: {resp}")
+
+        # Extraer balance y discount del data
+        data = resp.get("data", {})
+        balance = data.get("balance")
+        discount = data.get("discount")
+
+        print(f"[CASH] Saldo para la venta: {balance}")
+        print(f"[CARD] Descuentos acumulados: {discount}")
+        print(f"{'='*80}\n")
+
+        return resp
+
+    except Exception as e:
+        print(f"[ERROR] Error al consultar balance: {e}")
+        print(f"{'='*80}\n")
+
+        return {
+            "success": False,
+            "data": {"balance": None, "discount": None},
+            "message": f"No se pudo consultar el balance de la cuenta Winred: {str(e)}",
+            "error": str(e)
+        }
 
 @router.post("/topup")
 async def topup(req: TopupRequest, db: AsyncSession = Depends(get_async_session)):
@@ -449,14 +514,14 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
     fallidas: List[Dict[str, Any]] = []
 
     print(f"\n{'='*80}")
-    print(f"🔄 INICIANDO RECARGA DE LOTE: {body.lote_id}")
+    print(f"[REFRESH] INICIANDO RECARGA DE LOTE: {body.lote_id}")
     print(f"   Total SIMs a recargar: {len(sims)}")
     print(f"   Product ID: {body.product_id}")
     print(f"{'='*80}\n")
 
     for idx, sim in enumerate(sims, 1):
         msisdn = _as_str(sim.numero_linea)
-        print(f"📱 [{idx}/{len(sims)}] Procesando SIM: {msisdn}")
+        print(f"[PHONE] [{idx}/{len(sims)}] Procesando SIM: {msisdn}")
 
         data = {
             "product_id": _as_str(body.product_id),
@@ -472,7 +537,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
         for attempt in range(1, 4):  # Intentos: 1, 2, 3
             try:
                 if attempt > 1:
-                    print(f"   🔄 Reintento {attempt}/3 para {msisdn}")
+                    print(f"   [REFRESH] Reintento {attempt}/3 para {msisdn}")
                     # Delay progresivo: 2s, 4s
                     await asyncio.sleep(2 * (attempt - 1))
 
@@ -480,7 +545,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
                 ok = (resp.get("result", {}) or {}).get("success") is True or resp.get("success") is True
 
                 if ok:
-                    print(f"   ✅ Recarga exitosa para {msisdn} (intento {attempt})")
+                    print(f"   [OK] Recarga exitosa para {msisdn} (intento {attempt})")
                     exitosas_msisdns.append(msisdn)
 
                     # Persistir inmediatamente en sim_detalle
@@ -491,13 +556,13 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
                             winred_product_id=_as_str(body.product_id),
                         )
                     except Exception as e:
-                        print(f"   ⚠️ Persistencia sim_detalle fallida para {msisdn}: {e}")
+                        print(f"   [WARNING] Persistencia sim_detalle fallida para {msisdn}: {e}")
 
                     success = True
                     break  # Salir del loop de reintentos
                 else:
                     msg = resp.get("result", {}).get("message", "Sin mensaje")
-                    print(f"   ⚠️ Winred rechazó la recarga (intento {attempt}): {msg}")
+                    print(f"   [WARNING] Winred rechazó la recarga (intento {attempt}): {msg}")
                     last_error = resp
 
                     # Si es error de firma y no es el último intento, reintentar
@@ -507,7 +572,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
                         break  # Error definitivo, no reintentar
 
             except Exception as e:
-                print(f"   ❌ Error en intento {attempt} para {msisdn}: {e}")
+                print(f"   [ERROR] Error en intento {attempt} para {msisdn}: {e}")
                 last_error = str(e)
                 if attempt < 3:
                     continue
@@ -515,7 +580,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
         # Si después de todos los intentos no fue exitoso
         if not success:
             fallidas.append({"msisdn": msisdn, "error": last_error})
-            print(f"   ❌ FALLO DEFINITIVO para {msisdn} después de 3 intentos")
+            print(f"   [ERROR] FALLO DEFINITIVO para {msisdn} después de 3 intentos")
 
         # Delay entre SIMs para evitar rate limiting (2 segundos)
         if idx < len(sims):  # No hacer delay después de la última
@@ -523,10 +588,10 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
 
     # Resumen final
     print(f"\n{'='*80}")
-    print(f"📊 RESUMEN DE RECARGA DE LOTE: {body.lote_id}")
+    print(f"[CHART] RESUMEN DE RECARGA DE LOTE: {body.lote_id}")
     print(f"   Total procesadas: {len(sims)}")
-    print(f"   ✅ Exitosas: {len(exitosas_msisdns)}")
-    print(f"   ❌ Fallidas: {len(fallidas)}")
+    print(f"   [OK] Exitosas: {len(exitosas_msisdns)}")
+    print(f"   [ERROR] Fallidas: {len(fallidas)}")
     if fallidas:
         print(f"\n   SIMs fallidas:")
         for f in fallidas:
@@ -618,7 +683,7 @@ async def topup_lote_stream(
                                     winred_product_id=_as_str(product_id),
                                 )
                             except Exception as e:
-                                print(f"⚠️ Error persistencia: {e}")
+                                print(f"[WARNING] Error persistencia: {e}")
 
                             # Evento: éxito
                             yield f"data: {json.dumps({'type': 'success', 'msisdn': msisdn, 'index': idx, 'total': len(sims)})}\n\n"

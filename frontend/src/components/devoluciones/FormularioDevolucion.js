@@ -270,7 +270,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
   const SimCard = ({ sim, selected, onSelect, type, loading }) => (
     <div
       className={`border rounded-lg p-3 cursor-pointer transition-all ${
-        selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+        selected ? 'border-localsim-teal-500 bg-localsim-teal-50' : 'border-gray-200 hover:border-gray-300'
       }`}
       onClick={() => onSelect(sim)}
     >
@@ -293,7 +293,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
           </div>
         </div>
         {selected && (
-          <CheckCircle className="w-5 h-5 text-blue-500 flex-shrink-0" />
+          <CheckCircle className="w-5 h-5 text-localsim-teal-500 flex-shrink-0" />
         )}
       </div>
     </div>
@@ -327,13 +327,13 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
             <div
               className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
                 tipoDevolucion === 'intercambio'
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-localsim-teal-500 bg-localsim-teal-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
               onClick={() => setTipoDevolucion('intercambio')}
             >
               <div className="flex items-center gap-3 mb-2">
-                <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+                <ArrowRightLeft className="w-5 h-5 text-localsim-teal-600" />
                 <span className="font-medium">Intercambio de SIM</span>
               </div>
               <p className="text-sm text-gray-600">
@@ -366,7 +366,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Search className="w-5 h-5 text-blue-500" />
+                <Search className="w-5 h-5 text-localsim-teal-500" />
                 Buscar Venta por ICCID
               </CardTitle>
             </CardHeader>
@@ -417,7 +417,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {loadingVentas ? (
                     <div className="text-center py-4">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-localsim-teal-500" />
                       <p className="text-sm text-gray-600">Buscando ventas...</p>
                     </div>
                   ) : ventasEncontradas.length === 0 ? (
@@ -534,7 +534,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {loadingVendidas ? (
                   <div className="text-center py-4">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-localsim-teal-500" />
                     <p className="text-sm text-gray-600">Cargando SIMs...</p>
                   </div>
                 ) : simsVendidas.length === 0 ? (
@@ -590,7 +590,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {loadingDisponibles ? (
                   <div className="text-center py-4">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-localsim-teal-500" />
                     <p className="text-sm text-gray-600">Cargando SIMs...</p>
                   </div>
                 ) : simsDisponibles.length === 0 ? (

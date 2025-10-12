@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ShoppingCart, Search, Plus, Minus, X, Scan } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, X, Scan, DollarSign, Package, CreditCard, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -586,10 +586,12 @@ const SalesPointOfSale = () => {
     let subtotalUSD = 0;
     let taxesCOP = 0;
     let taxesUSD = 0;
+    let itemCount = 0;
 
     cart.forEach(item => {
       const itemSubtotal = item.quantity * item.unit_price;
       const currency = item.currency || 'COP';
+      itemCount += item.quantity;
 
       if (currency === 'USD') {
         subtotalUSD += itemSubtotal;
@@ -630,7 +632,8 @@ const SalesPointOfSale = () => {
       taxesUSD,
       totalCOP: subtotalCOP + taxesCOP,
       totalUSD: subtotalUSD + taxesUSD,
-      hasMultipleCurrencies: subtotalCOP > 0 && subtotalUSD > 0
+      hasMultipleCurrencies: subtotalCOP > 0 && subtotalUSD > 0,
+      itemCount
     };
   }, [cart]);
 
@@ -644,14 +647,14 @@ const SalesPointOfSale = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Product Selection */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2">
-                <Search className="w-5 h-5 text-blue-600" />
-                <span>Buscar Productos</span>
+          <Card className="shadow-lg border-0">
+            <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-white border-b">
+              <CardTitle className="flex items-center gap-2 text-localsim-teal-700">
+                <Search className="h-5 w-5" />
+                Buscar Productos
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-6 space-y-4">
               {/* Barcode Scanner */}
               <div className="flex space-x-2">
                 <Input
@@ -663,16 +666,18 @@ const SalesPointOfSale = () => {
                     if (e.key === 'Enter') {
                       const code = barcodeInput.trim();
                       handleBarcodeOrIccid(code);
+                      setBarcodeInput('');
                     }
                   }}
-                  className="flex-1"
+                  className="flex-1 border-localsim-teal-200 focus:border-localsim-teal-500"
                 />
                 <Button
                   onClick={() => {
                     const code = barcodeInput.trim();
                     handleBarcodeOrIccid(code);
+                    setBarcodeInput('');
                   }}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-gradient-to-r from-localsim-teal-500 to-localsim-teal-600 hover:from-localsim-teal-600 hover:to-localsim-teal-700 shadow-md"
                 >
                   <Scan className="w-4 h-4" />
                 </Button>
@@ -680,11 +685,11 @@ const SalesPointOfSale = () => {
 
               {/* Global Scanner Indicator */}
               {globalScanBuffer.length > 0 && (
-                <div className="bg-green-100 border border-green-300 rounded-lg p-2">
+                <div className="bg-green-100 border border-green-300 rounded-lg p-3">
                   <div className="flex items-center gap-2">
-                    <Scan className="w-4 h-4 text-green-600 animate-pulse" />
-                    <span className="text-sm text-green-800">
-                      Escaneando: <code className="bg-green-200 px-1 rounded">{globalScanBuffer}</code>
+                    <Scan className="w-5 h-5 text-green-600 animate-pulse" />
+                    <span className="text-sm font-medium text-green-800">
+                      Escaneando: <code className="bg-green-200 px-2 py-1 rounded font-mono">{globalScanBuffer}</code>
                     </span>
                   </div>
                 </div>
@@ -695,10 +700,11 @@ const SalesPointOfSale = () => {
                 placeholder="Buscar por nombre o código"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="border-localsim-teal-200 focus:border-localsim-teal-500"
               />
 
-              {/* Product Grid - 4 columnas en pantallas grandes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {/* Product Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto">
                 {filteredProducts.slice(0, 12).map((product) => {
                   if (
                     !product ||
@@ -709,32 +715,29 @@ const SalesPointOfSale = () => {
                     return null;
                   }
 
+                  const priceData = getProductPrice(product, paymentMethod);
+
                   return (
                     <div
                       key={product.id}
                       className={`p-4 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
                         selectedProduct?.id === product.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300'
+                          ? 'border-localsim-teal-500 bg-localsim-teal-50 shadow-md'
+                          : 'border-gray-200 hover:border-localsim-teal-300'
                       }`}
                       onClick={() => setSelectedProduct(product)}
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{product.name || 'Sin nombre'}</h3>
-                          <p className="text-sm text-gray-600">Código: {product.code || 'Sin código'}</p>
-                          <p className="text-lg font-bold text-blue-600">
-                            {(() => {
-                              const priceData = getProductPrice(product, paymentMethod);
-                              return formatPrice(priceData.price, priceData.currency);
-                            })()}
+                      <div className="flex flex-col h-full">
+                        <h3 className="font-semibold text-gray-900 text-sm mb-1">{product.name || 'Sin nombre'}</h3>
+                        <p className="text-xs text-gray-600 mb-2">Código: {product.code || 'Sin código'}</p>
+                        <p className="text-lg font-bold text-localsim-teal-600 mt-auto">
+                          {formatPrice(priceData.price, priceData.currency)}
+                        </p>
+                        {paymentMethod === 'dollars' && dollarPrices[product.code] && (
+                          <p className="text-xs text-gray-500">
+                            Original: {formatPrice(product.unit_price, 'COP')}
                           </p>
-                          {paymentMethod === 'dollars' && dollarPrices[product.code] && (
-                            <p className="text-sm text-gray-500">
-                              Original: {formatPrice(product.unit_price, 'COP')}
-                            </p>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -744,15 +747,18 @@ const SalesPointOfSale = () => {
           </Card>
 
           {/* Selector rápido de SIMs disponibles */}
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-blue-600">Seleccionar SIM disponible</CardTitle>
+          <Card className="shadow-lg border-0">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b">
+              <CardTitle className="flex items-center gap-2 text-blue-700">
+                <Receipt className="h-5 w-5" />
+                Seleccionar SIM Disponible
+              </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="md:col-span-2">
-                <Label>SIM disponible</Label>
+                <Label className="text-gray-700 font-medium">SIM disponible</Label>
                 <select
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-localsim-teal-200 bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-localsim-teal-500 focus:border-localsim-teal-500 mt-1"
                   value={selectedSim ? String(selectedSim.id) : ""}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -771,7 +777,7 @@ const SalesPointOfSale = () => {
                       key={String(sim.id)}
                       value={String(sim.id)}
                     >
-                      {`${sim.numero_linea || sim.number || "—"} · ICCID: ${sim.iccid} · Plan: ${sim.plan_asignado || "—"}`}
+                      {`${sim.lote_id || "Sin lote"} - ${sim.numero_linea || sim.number || "—"} - ICCID: ${sim.iccid} - Plan: ${sim.plan_asignado || "—"}`}
                     </option>
                   ))}
                 </select>
@@ -782,10 +788,11 @@ const SalesPointOfSale = () => {
 
               <div className="md:col-span-1 flex justify-end">
                 <Button
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
                   disabled={!selectedSim}
                   onClick={() => selectedSim && addSimAndPlanToCart()}
                 >
+                  <Plus className="w-4 h-4 mr-2" />
                   Agregar SIM + Plan
                 </Button>
               </div>
@@ -794,12 +801,12 @@ const SalesPointOfSale = () => {
 
           {/* Add to Cart */}
           {selectedProduct && (
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardContent className="pt-6">
+            <Card className="shadow-lg border-0 bg-gradient-to-r from-localsim-teal-50 to-blue-50">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold">{selectedProduct.name}</h3>
-                    <p className="text-blue-600 font-bold">
+                    <h3 className="font-semibold text-lg text-gray-900">{selectedProduct.name}</h3>
+                    <p className="text-localsim-teal-600 font-bold text-xl">
                       {(() => {
                         const priceData = getProductPrice(selectedProduct, paymentMethod);
                         return formatPrice(priceData.price, priceData.currency);
@@ -816,18 +823,23 @@ const SalesPointOfSale = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="border-localsim-teal-300"
                     >
                       <Minus className="w-4 h-4" />
                     </Button>
-                    <span className="font-semibold w-8 text-center">{quantity}</span>
+                    <span className="font-semibold w-8 text-center text-lg">{quantity}</span>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setQuantity(quantity + 1)}
+                      className="border-localsim-teal-300"
                     >
                       <Plus className="w-4 h-4" />
                     </Button>
-                    <Button onClick={addToCart} className="bg-green-600 hover:bg-green-700">
+                    <Button
+                      onClick={addToCart}
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md ml-2"
+                    >
                       <Plus className="w-4 h-4 mr-2" />
                       Agregar
                     </Button>
@@ -840,81 +852,89 @@ const SalesPointOfSale = () => {
 
         {/* Shopping Cart */}
         <div className="space-y-6">
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2">
-                <ShoppingCart className="w-5 h-5 text-green-600" />
-                <span>Carrito de Compras</span>
+          <Card className="shadow-lg border-0">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+              <CardTitle className="flex items-center gap-2 text-green-700">
+                <ShoppingCart className="h-5 w-5" />
+                Carrito de Compras
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-6 space-y-4">
               {cart.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Carrito vacío</p>
+                <div className="text-center py-12">
+                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">Carrito vacío</p>
+                  <p className="text-gray-400 text-sm">Escanea o selecciona productos</p>
+                </div>
               ) : (
                 <>
-                  {cart.map((item, index) => (
-                    <div key={index} className="p-3 border rounded-lg space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h4 className="font-medium">{item.product_name}</h4>
-                          <p className="text-sm text-gray-600">Código: {item.product_code}</p>
-                          {item.sim_number && (
-                            <p className="text-sm text-blue-600">SIM: {item.sim_number}</p>
-                          )}
-                          {item.selected_plan && (
-                            <p className="text-sm text-green-600">Plan: {item.selected_plan}</p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFromCart(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-2">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {cart.map((item, index) => (
+                      <div key={index} className="p-3 border border-gray-200 rounded-lg space-y-2 hover:border-localsim-teal-300 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{item.product_name}</h4>
+                            <p className="text-xs text-gray-600">Código: {item.product_code}</p>
+                            {item.sim_number && (
+                              <p className="text-xs text-localsim-teal-600 font-medium">SIM: {item.sim_number}</p>
+                            )}
+                            {item.selected_plan && (
+                              <p className="text-xs text-green-600 font-medium">Plan: {item.selected_plan}</p>
+                            )}
+                          </div>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => updateQuantity(index, item.quantity - 1)}
+                            onClick={() => removeFromCart(index)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <span className="w-8 text-center">{item.quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateQuantity(index, item.quantity + 1)}
-                          >
-                            <Plus className="w-3 h-3" />
+                            <X className="w-4 h-4" />
                           </Button>
                         </div>
-                        <p className="font-semibold">
-                          {formatPrice(item.unit_price * item.quantity, item.currency || 'COP')}
-                        </p>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateQuantity(index, item.quantity - 1)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateQuantity(index, item.quantity + 1)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <p className="font-semibold text-localsim-teal-600">
+                            {formatPrice(item.unit_price * item.quantity, item.currency || 'COP')}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
 
                   <Separator />
 
                   {/* Totals */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 bg-gray-50 rounded-lg p-4">
                     {totals.totalCOP > 0 && (
                       <>
-                        <div className="flex justify-between">
-                          <span>Subtotal COP:</span>
-                          <span>{formatPrice(totals.subtotalCOP, 'COP')}</span>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Subtotal COP:</span>
+                          <span className="font-medium">{formatPrice(totals.subtotalCOP, 'COP')}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>IVA COP:</span>
-                          <span>{formatPrice(totals.taxesCOP, 'COP')}</span>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">IVA COP:</span>
+                          <span className="font-medium">{formatPrice(totals.taxesCOP, 'COP')}</span>
                         </div>
-                        <div className="flex justify-between font-semibold">
-                          <span>Total COP:</span>
+                        <div className="flex justify-between font-semibold text-lg pt-2 border-t">
+                          <span className="text-gray-900">Total COP:</span>
                           <span className="text-green-600">{formatPrice(totals.totalCOP, 'COP')}</span>
                         </div>
                       </>
@@ -922,17 +942,17 @@ const SalesPointOfSale = () => {
 
                     {totals.totalUSD > 0 && (
                       <>
-                        {totals.hasMultipleCurrencies && <hr className="my-1" />}
-                        <div className="flex justify-between">
-                          <span>Subtotal USD:</span>
-                          <span>{formatPrice(totals.subtotalUSD, 'USD')}</span>
+                        {totals.hasMultipleCurrencies && <hr className="my-2" />}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Subtotal USD:</span>
+                          <span className="font-medium">{formatPrice(totals.subtotalUSD, 'USD')}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>IVA USD:</span>
-                          <span>{formatPrice(totals.taxesUSD, 'USD')}</span>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">IVA USD:</span>
+                          <span className="font-medium">{formatPrice(totals.taxesUSD, 'USD')}</span>
                         </div>
-                        <div className="flex justify-between font-semibold">
-                          <span>Total USD:</span>
+                        <div className="flex justify-between font-semibold text-lg pt-2 border-t">
+                          <span className="text-gray-900">Total USD:</span>
                           <span className="text-green-600">{formatPrice(totals.totalUSD, 'USD')}</span>
                         </div>
                       </>
@@ -940,7 +960,7 @@ const SalesPointOfSale = () => {
 
                     {totals.hasMultipleCurrencies && (
                       <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
-                        <p className="text-xs text-yellow-800">
+                        <p className="text-xs text-yellow-800 font-medium">
                           ⚠️ Carrito contiene múltiples monedas
                         </p>
                       </div>
@@ -951,9 +971,9 @@ const SalesPointOfSale = () => {
 
                   {/* Payment Method */}
                   <div>
-                    <Label>Método de Pago</Label>
+                    <Label className="text-gray-700 font-medium">Método de Pago</Label>
                     <select
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-localsim-teal-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-localsim-teal-500 mt-1"
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value)}
                     >
@@ -966,9 +986,19 @@ const SalesPointOfSale = () => {
                   <Button
                     onClick={completeSale}
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3"
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 shadow-lg hover:shadow-xl transition-all"
                   >
-                    {loading ? 'Procesando...' : 'Completar Venta'}
+                    {loading ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Procesando...
+                      </div>
+                    ) : (
+                      <>
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Completar Venta
+                      </>
+                    )}
                   </Button>
                 </>
               )}

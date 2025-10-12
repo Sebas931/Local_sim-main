@@ -21,7 +21,7 @@ const UsersManagement = React.lazy(() => import('./components/users/UsersManagem
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center h-64">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-localsim-teal-500 mx-auto"></div>
       <p className="mt-4 text-gray-500">Cargando...</p>
     </div>
   </div>
@@ -38,12 +38,12 @@ const NotificationDisplay = () => {
       <Alert className={`${
         notification.type === 'error' ? 'border-red-500 bg-red-50' :
         notification.type === 'success' ? 'border-green-500 bg-green-50' :
-        'border-blue-500 bg-blue-50'
+        'border-localsim-teal-500 bg-localsim-teal-50'
       }`}>
         <AlertDescription className={`${
           notification.type === 'error' ? 'text-red-700' :
           notification.type === 'success' ? 'text-green-700' :
-          'text-blue-700'
+          'text-localsim-teal-700'
         }`}>
           {notification.message}
         </AlertDescription>

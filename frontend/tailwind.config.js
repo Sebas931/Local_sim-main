@@ -13,6 +13,19 @@ module.exports = {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+  			// Local SIM Brand Colors
+  			'localsim-teal': {
+  				50: '#e6f9f5',
+  				100: '#b3f0e4',
+  				200: '#80e6d3',
+  				300: '#4dddc2',
+  				400: '#1ad4b1',
+  				500: '#00BFA5',  // Main brand color
+  				600: '#00a88f',
+  				700: '#008f79',
+  				800: '#007763',
+  				900: '#005e4d',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

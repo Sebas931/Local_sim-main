@@ -341,36 +341,125 @@ const TurnosManagement = () => {
     }
   };
 
+  // Calculate statistics
+  const turnosCerrados = misTurnos.filter(t => t.estado === 'cerrado').length;
+  const totalVentas = misTurnos
+    .filter(t => t.estado === 'cerrado')
+    .reduce((sum, t) => sum + (t.total_ventas || 0), 0);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 bg-clip-text text-transparent">
+            Gestión de Turnos
+          </h1>
+          <p className="text-gray-600 mt-1">Administra apertura y cierre de turnos de caja</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      {misTurnos.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-500 to-indigo-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Total Turnos</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{misTurnos.length}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <Clock className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-green-500 to-emerald-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Turnos Cerrados</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{turnosCerrados}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <FileText className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-purple-500 to-purple-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Total Ventas</p>
+                  <h3 className="text-2xl font-bold text-white mt-1">{formatPrice(totalVentas)}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <DollarSign className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Turno Status and Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Estado del Turno
-          </CardTitle>
+      <Card className="shadow-lg border-0">
+        <CardHeader className={turnoAbierto ? "bg-gradient-to-r from-green-50 to-emerald-50 border-b" : "bg-gradient-to-r from-orange-50 to-red-50 border-b"}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`p-2 rounded-lg ${turnoAbierto ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-orange-500 to-red-600'}`}>
+                <Clock className="h-5 w-5 text-white" />
+              </div>
+              <CardTitle className={turnoAbierto ? "text-green-700" : "text-orange-700"}>
+                Estado del Turno
+              </CardTitle>
+            </div>
+            <div className="flex gap-2">
+              {turnoAbierto ? (
+                <Button
+                  onClick={prepararCierre}
+                  disabled={loading}
+                  className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transition-all"
+                >
+                  {loading ? 'Preparando...' : 'Cerrar Turno'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={prepararApertura}
+                  disabled={loading || loadingPlanes}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all"
+                >
+                  {loadingPlanes ? 'Cargando...' : 'Abrir Turno'}
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
               {turnoAbierto ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-green-100 text-green-800">
+                    <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 px-3 py-1">
                       Turno Abierto
                     </Badge>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-gray-600 font-medium">
                       ID: {turnoAbierto.id}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    Abierto: {new Date(turnoAbierto.fecha_apertura).toLocaleString()}
-                  </p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Calendar className="w-4 h-4" />
+                    <span>Abierto: {new Date(turnoAbierto.fecha_apertura).toLocaleString('es-CO')}</span>
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-orange-600 border-orange-600">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 px-3 py-1">
                     Sin Turno Abierto
                   </Badge>
                   <span className="text-sm text-gray-600">
@@ -379,86 +468,104 @@ const TurnosManagement = () => {
                 </div>
               )}
             </div>
-
-            <div className="flex gap-2">
-              {turnoAbierto ? (
-                <Button
-                  onClick={prepararCierre}
-                  disabled={loading}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {loading ? 'Preparando...' : 'Cerrar Turno'}
-                </Button>
-              ) : (
-                <Button
-                  onClick={prepararApertura}
-                  disabled={loading || loadingPlanes}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {loadingPlanes ? 'Cargando...' : 'Abrir Turno'}
-                </Button>
-              )}
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Mis Turnos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de Turnos</CardTitle>
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-cyan-50 border-b">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-br from-localsim-teal-600 to-localsim-teal-500 p-2 rounded-lg">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <CardTitle className="text-localsim-teal-700">Historial de Turnos</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {loadingTurnos ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-sm text-gray-500">Cargando turnos...</p>
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-localsim-teal-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 text-lg">Cargando turnos...</p>
             </div>
           ) : (misTurnos || []).length === 0 ? (
-            <p className="text-center text-gray-500 py-4">No hay turnos registrados</p>
+            <div className="text-center py-16">
+              <div className="bg-gradient-to-br from-localsim-teal-100 to-cyan-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-10 h-10 text-localsim-teal-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No hay turnos registrados
+              </h3>
+              <p className="text-gray-600">Abre tu primer turno para comenzar</p>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {(misTurnos || []).map((turno) => (
-                <div key={turno.id} className="border rounded-lg p-4">
+                <div key={turno.id} className="border-2 border-gray-200 rounded-lg p-5 hover:shadow-lg hover:border-localsim-teal-200 transition-all bg-white">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={turno.estado === 'abierto' ? 'default' : 'secondary'}>
-                          {turno.estado}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Badge className={turno.estado === 'abierto'
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0'
+                          : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white border-0'
+                        }>
+                          {turno.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
                         </Badge>
-                        <span className="font-medium">Turno #{turno.id}</span>
+                        <span className="font-bold text-gray-900 text-lg">Turno #{String(turno.id).slice(-8)}</span>
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        <p>Apertura: {new Date(turno.fecha_apertura).toLocaleString()}</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                          <Calendar className="w-4 h-4 text-green-600" />
+                          <div>
+                            <span className="text-xs text-green-700 font-medium">Apertura</span>
+                            <p className="text-gray-900 font-medium">{new Date(turno.fecha_apertura).toLocaleString('es-CO')}</p>
+                          </div>
+                        </div>
                         {turno.fecha_cierre && (
-                          <p>Cierre: {new Date(turno.fecha_cierre).toLocaleString()}</p>
+                          <div className="flex items-center gap-2 bg-red-50 px-3 py-2 rounded-lg">
+                            <Calendar className="w-4 h-4 text-red-600" />
+                            <div>
+                              <span className="text-xs text-red-700 font-medium">Cierre</span>
+                              <p className="text-gray-900 font-medium">{new Date(turno.fecha_cierre).toLocaleString('es-CO')}</p>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-right space-y-3">
                       {turno.estado === 'cerrado' && (
-                        <div className="text-sm">
-                          <p className="text-gray-600">Total: {formatPrice(turno.total_ventas || 0)}</p>
+                        <div className="space-y-2">
+                          <div className="bg-localsim-teal-50 px-4 py-2 rounded-lg">
+                            <p className="text-xs text-localsim-teal-700 font-medium">Total Ventas</p>
+                            <p className="text-xl font-bold text-localsim-teal-600">{formatPrice(turno.total_ventas || 0)}</p>
+                          </div>
                           {turno.diferencia !== undefined && (
-                            <p className={`font-medium ${
-                              turno.diferencia === 0 ? 'text-green-600' :
-                              turno.diferencia > 0 ? 'text-blue-600' : 'text-red-600'
+                            <div className={`px-4 py-2 rounded-lg ${
+                              turno.diferencia === 0 ? 'bg-green-50' :
+                              turno.diferencia > 0 ? 'bg-blue-50' : 'bg-red-50'
                             }`}>
-                              Diferencia: {formatPrice(turno.diferencia)}
-                            </p>
+                              <p className="text-xs font-medium mb-1 ${
+                                turno.diferencia === 0 ? 'text-green-700' :
+                                turno.diferencia > 0 ? 'text-blue-700' : 'text-red-700'
+                              }">Diferencia</p>
+                              <p className={`text-lg font-bold ${
+                                turno.diferencia === 0 ? 'text-green-600' :
+                                turno.diferencia > 0 ? 'text-localsim-teal-600' : 'text-red-600'
+                              }`}>
+                                {formatPrice(turno.diferencia)}
+                              </p>
+                            </div>
                           )}
                         </div>
                       )}
 
                       <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => {
                           console.log('Clicking Ver Detalle for turno:', turno);
                           fetchMovimientosTurno(turno.id);
                         }}
-                        className="mt-2 flex items-center gap-2"
+                        className="w-full bg-gradient-to-r from-localsim-teal-500 to-localsim-teal-600 hover:from-localsim-teal-600 hover:to-localsim-teal-700 text-white flex items-center justify-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
                         {turnoSeleccionado === turno.id ? 'Cargando...' : 'Ver Detalle'}
@@ -472,7 +579,7 @@ const TurnosManagement = () => {
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-lg flex items-center gap-2">
-                              <FileText className="h-5 w-5 text-blue-600" />
+                              <FileText className="h-5 w-5 text-localsim-teal-600" />
                               Detalle del Turno #{String(turno.id).slice(-8)}
                             </CardTitle>
                             <Button
@@ -535,7 +642,7 @@ const TurnosManagement = () => {
                                     }, {});
 
                                   const metodosConfig = {
-                                    'electronic': { label: 'Datáfono', color: 'bg-blue-50 border-blue-200', icon: CreditCard, textColor: 'text-blue-700' },
+                                    'electronic': { label: 'Datáfono', color: 'bg-localsim-teal-50 border-localsim-teal-200', icon: CreditCard, textColor: 'text-localsim-teal-700' },
                                     'cash': { label: 'Efectivo', color: 'bg-green-50 border-green-200', icon: DollarSign, textColor: 'text-green-700' },
                                     'dollars': { label: 'Dólares', color: 'bg-purple-50 border-purple-200', icon: DollarSign, textColor: 'text-purple-700' }
                                   };
@@ -645,7 +752,7 @@ const TurnosManagement = () => {
                                 <div className="mt-4 pt-3 border-t bg-gray-100 rounded-lg p-3">
                                   <div className="flex justify-between items-center">
                                     <span className="font-bold text-gray-900">Total del Turno:</span>
-                                    <span className="font-bold text-xl text-blue-600">
+                                    <span className="font-bold text-xl text-localsim-teal-600">
                                       {formatPrice(movimientosTurno
                                         .filter(mov => !mov.anulada) // Excluir ventas anuladas
                                         .reduce((sum, mov) => sum + (mov.monto || mov.total || mov.amount || 0), 0))}
@@ -677,7 +784,7 @@ const TurnosManagement = () => {
           </DialogHeader>
 
           <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded p-4">
+            <div className="bg-localsim-teal-50 border border-localsim-teal-200 rounded p-4">
               <p className="text-sm text-blue-800">
                 <strong>Completa la información para cerrar el turno:</strong><br/>
                 1. Registra el inventario final de SIMs que tienes<br/>

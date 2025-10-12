@@ -332,16 +332,16 @@ async def get_ventas_ingresos(
 ):
     """Análisis detallado de ventas e ingresos con filtros de fecha y usuario"""
 
-    print(f"🔍 Backend recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}")
+    print(f"[VENTAS] Backend recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}")
 
     # Convertir user_id de string a int si es necesario
     user_id_int = None
     if user_id:
         try:
             user_id_int = int(user_id)
-            print(f"👤 User ID convertido a int: {user_id_int}")
+            print(f"[USER] User ID convertido a int: {user_id_int}")
         except (ValueError, TypeError) as e:
-            print(f"❌ Error convirtiendo user_id a int: {e}")
+            print(f"[ERROR] Error convirtiendo user_id a int: {e}")
             raise HTTPException(status_code=400, detail=f"user_id debe ser un número entero válido")
 
     # Manejo de filtros de fecha
@@ -350,14 +350,14 @@ async def get_ventas_ingresos(
             # Asegurar que las fechas cubran todo el día
             fecha_desde_dt = datetime.fromisoformat(fecha_desde).replace(hour=0, minute=0, second=0, microsecond=0)
             fecha_hasta_dt = datetime.fromisoformat(fecha_hasta).replace(hour=23, minute=59, second=59, microsecond=999999)
-            print(f"📅 Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
+            print(f"[DATE] Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
         except ValueError as e:
-            print(f"❌ Error parseando fechas: {e}")
+            print(f"[ERROR] Error parseando fechas: {e}")
             raise HTTPException(status_code=400, detail=f"Formato de fecha inválido. Use ISO format (YYYY-MM-DD). Error: {str(e)}")
     else:
         fecha_desde_dt = datetime.now(timezone.utc) - timedelta(days=days)
         fecha_hasta_dt = datetime.now(timezone.utc)
-        print(f"📅 Usando días por defecto: {days}")
+        print(f"[DATE] Usando dias por defecto: {days}")
 
     # Construcción dinámica de la consulta
     where_clauses = [
@@ -467,16 +467,16 @@ async def get_cierres_descuadres(
     current_user: User = Depends(get_current_user)
 ):
     """Análisis de cierres de turno y detección de descuadres con filtros de fecha y usuario"""
-    print(f"🔍 Backend /cierres-descuadres recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}, solo_con_diferencias={solo_con_diferencias}")
+    print(f"[CIERRES] Backend /cierres-descuadres recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}, solo_con_diferencias={solo_con_diferencias}")
 
     # Convertir user_id de string a int si es necesario
     user_id_int = None
     if user_id:
         try:
             user_id_int = int(user_id)
-            print(f"👤 User ID convertido a int: {user_id_int}")
+            print(f"[USER] User ID convertido a int: {user_id_int}")
         except (ValueError, TypeError) as e:
-            print(f"❌ Error convirtiendo user_id a int: {e}")
+            print(f"[ERROR] Error convirtiendo user_id a int: {e}")
             raise HTTPException(status_code=400, detail=f"user_id debe ser un número entero válido")
 
     # Manejo de filtros de fecha
@@ -485,9 +485,9 @@ async def get_cierres_descuadres(
             # Asegurar que las fechas cubran todo el día
             fecha_desde_dt = datetime.fromisoformat(fecha_desde).replace(hour=0, minute=0, second=0, microsecond=0)
             fecha_hasta_dt = datetime.fromisoformat(fecha_hasta).replace(hour=23, minute=59, second=59, microsecond=999999)
-            print(f"📅 Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
+            print(f"[DATE] Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
         except ValueError as e:
-            print(f"❌ Error parseando fechas: {e}")
+            print(f"[ERROR] Error parseando fechas: {e}")
             raise HTTPException(status_code=400, detail=f"Formato de fecha inválido. Use ISO format (YYYY-MM-DD). Error: {str(e)}")
     else:
         fecha_desde_dt = datetime.now(timezone.utc) - timedelta(days=days)
@@ -617,16 +617,16 @@ async def get_devoluciones_analytics(
     current_user: User = Depends(get_current_user)
 ):
     """Análisis de devoluciones e intercambios con filtros de fecha y usuario"""
-    print(f"🔍 Backend /devoluciones recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}")
+    print(f"[DEVOLUCIONES] Backend /devoluciones recibió: days={days}, fecha_desde={fecha_desde}, fecha_hasta={fecha_hasta}, user_id={user_id}")
 
     # Convertir user_id de string a int si es necesario
     user_id_int = None
     if user_id:
         try:
             user_id_int = int(user_id)
-            print(f"👤 User ID convertido a int: {user_id_int}")
+            print(f"[USER] User ID convertido a int: {user_id_int}")
         except (ValueError, TypeError) as e:
-            print(f"❌ Error convirtiendo user_id a int: {e}")
+            print(f"[ERROR] Error convirtiendo user_id a int: {e}")
             raise HTTPException(status_code=400, detail=f"user_id debe ser un número entero válido")
 
     # Manejo de filtros de fecha
@@ -635,9 +635,9 @@ async def get_devoluciones_analytics(
             # Asegurar que las fechas cubran todo el día
             fecha_desde_dt = datetime.fromisoformat(fecha_desde).replace(hour=0, minute=0, second=0, microsecond=0)
             fecha_hasta_dt = datetime.fromisoformat(fecha_hasta).replace(hour=23, minute=59, second=59, microsecond=999999)
-            print(f"📅 Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
+            print(f"[DATE] Fechas parseadas: {fecha_desde_dt} hasta {fecha_hasta_dt}")
         except ValueError as e:
-            print(f"❌ Error parseando fechas: {e}")
+            print(f"[ERROR] Error parseando fechas: {e}")
             raise HTTPException(status_code=400, detail=f"Formato de fecha inválido. Use ISO format (YYYY-MM-DD). Error: {str(e)}")
     else:
         fecha_desde_dt = datetime.now(timezone.utc) - timedelta(days=days)

@@ -34,26 +34,34 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md w-96">
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <form onSubmit={handleSubmit} className="bg-localsim-teal-500 p-8 rounded-lg shadow-xl w-96">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Local SIM Colombia</h2>
-          <p className="text-gray-600 mt-2">Iniciar Sesión</p>
+          <div className="bg-white rounded-lg p-3 inline-block mb-4">
+            <img
+              src="/logo-local-sim.jpeg"
+              alt="Local SIM Colombia"
+              className="h-16 object-contain"
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </div>
+          <h2 className="text-2xl font-bold text-white">Local SIM Colombia</h2>
+          <p className="text-white/90 mt-2">Iniciar Sesión</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-red-800 text-sm">
             {error}
           </div>
         )}
 
         <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Usuario</label>
+          <label className="block text-white font-medium mb-2">Usuario</label>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-3 border-2 border-white/30 bg-white rounded-lg focus:ring-2 focus:ring-white focus:border-white outline-none transition-all"
             placeholder="Ingresa tu usuario"
             required
             disabled={isLoading}
@@ -61,12 +69,12 @@ export default function Login() {
         </div>
 
         <div className="mb-6">
-          <label className="block text-gray-700 mb-2">Contraseña</label>
+          <label className="block text-white font-medium mb-2">Contraseña</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-3 border-2 border-white/30 bg-white rounded-lg focus:ring-2 focus:ring-white focus:border-white outline-none transition-all"
             placeholder="Ingresa tu contraseña"
             required
             disabled={isLoading}
@@ -76,15 +84,15 @@ export default function Login() {
         <button
           type="submit"
           disabled={isLoading}
-          className={`w-full py-3 rounded-lg font-medium transition-colors ${
+          className={`w-full py-3 rounded-lg font-medium transition-all ${
             isLoading
               ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white`}
+              : 'bg-white text-localsim-teal-600 hover:bg-white/90'
+          } shadow-md hover:shadow-lg`}
         >
           {isLoading ? (
             <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-localsim-teal-500 mr-2"></div>
               Iniciando sesión...
             </div>
           ) : (
@@ -92,7 +100,7 @@ export default function Login() {
           )}
         </button>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
+        <div className="mt-6 text-center text-sm text-white/90">
           <p>¿Problemas para ingresar?</p>
           <p>Contacta al administrador del sistema</p>
         </div>

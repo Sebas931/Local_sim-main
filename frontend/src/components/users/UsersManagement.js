@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, UserPlus } from 'lucide-react';
+import { User, UserPlus, Users, Shield, Mail, Edit2, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Badge } from '../ui/badge';
 import { usersService } from '../../services/usersService';
 import { useApp } from '../../context/AppContext';
 
@@ -180,65 +181,174 @@ const UsersManagement = () => {
     }
   };
 
+  // Calculate statistics
+  const totalUsers = users.length;
+  const usersByRole = roles.reduce((acc, role) => {
+    acc[role.name] = users.filter(u => u.role === role.name).length;
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 bg-clip-text text-transparent">
             Gestión de Usuarios
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <Button
-              onClick={() => openUserForm()}
-              className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
-            >
-              <UserPlus className="h-4 w-4" />
-              Crear Usuario
-            </Button>
+          </h1>
+          <p className="text-gray-600 mt-1">Administra usuarios y sus roles en el sistema</p>
+        </div>
+        <Button
+          onClick={() => openUserForm()}
+          className="flex items-center gap-2 bg-gradient-to-r from-localsim-teal-600 to-localsim-teal-500 hover:from-localsim-teal-700 hover:to-localsim-teal-600 text-white shadow-lg hover:shadow-xl transition-all"
+        >
+          <UserPlus className="h-4 w-4" />
+          Crear Usuario
+        </Button>
+      </div>
+
+      {/* KPIs */}
+      {users.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-500 to-indigo-600">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Total Usuarios</p>
+                  <h3 className="text-3xl font-bold text-white mt-1">{totalUsers}</h3>
+                </div>
+                <div className="bg-white/20 p-3 rounded-lg">
+                  <Users className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {roles.slice(0, 3).map((role, index) => {
+            const colors = [
+              'from-green-500 to-emerald-600',
+              'from-orange-500 to-orange-600',
+              'from-purple-500 to-purple-600'
+            ];
+            return (
+              <Card key={role.id} className={`border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br ${colors[index]}`}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white/80 text-sm font-medium">{role.name}</p>
+                      <h3 className="text-3xl font-bold text-white mt-1">{usersByRole[role.name] || 0}</h3>
+                    </div>
+                    <div className="bg-white/20 p-3 rounded-lg">
+                      <Shield className="h-8 w-8 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Users Table */}
+      <Card className="shadow-lg border-0 bg-white">
+        <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-cyan-50 border-b">
+          <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-br from-localsim-teal-600 to-localsim-teal-500 p-2 rounded-lg">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <CardTitle className="text-localsim-teal-700">Lista de Usuarios</CardTitle>
           </div>
+        </CardHeader>
+        <CardContent className="pt-6">
 
           {users.length === 0 ? (
-            <div className="text-center py-8">
-              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No hay usuarios registrados</p>
+            <div className="text-center py-16">
+              <div className="bg-gradient-to-br from-localsim-teal-100 to-cyan-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-10 h-10 text-localsim-teal-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No hay usuarios registrados
+              </h3>
+              <p className="text-gray-600">Crea el primer usuario para comenzar</p>
             </div>
           ) : (
-            <table className="min-w-full border border-gray-200">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border px-4 py-2">Usuario</th>
-                  <th className="border px-4 py-2">Nombre Completo</th>
-                  <th className="border px-4 py-2">Email</th>
-                  <th className="border px-4 py-2">Rol</th>
-                  <th className="border px-4 py-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td className="border px-4 py-2">{u.username}</td>
-                    <td className="border px-4 py-2">{u.full_name}</td>
-                    <td className="border px-4 py-2">{u.email}</td>
-                    <td className="border px-4 py-2">{u.role}</td>
-                    <td className="border px-4 py-2 space-x-2">
-                      <Button size="sm" onClick={() => openUserForm(u)}>
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-red-500 hover:bg-red-600"
-                        onClick={() => deleteUser(u.id)}
-                      >
-                        Eliminar
-                      </Button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Usuario
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Nombre Completo
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        Email
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4" />
+                        Rol
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Acciones
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-localsim-teal-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-localsim-teal-100 p-2 rounded-full">
+                            <User className="w-4 h-4 text-localsim-teal-600" />
+                          </div>
+                          <span className="font-medium text-gray-900">{u.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                        {u.full_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 text-sm">
+                        {u.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge className="bg-gradient-to-r from-localsim-teal-500 to-localsim-teal-600 text-white border-0">
+                          {u.role}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => openUserForm(u)}
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                          >
+                            <Edit2 className="w-3 h-3 mr-1" />
+                            Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+                            onClick={() => deleteUser(u.id)}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

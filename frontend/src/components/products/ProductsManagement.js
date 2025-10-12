@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone } from 'lucide-react';
+import { Phone, Wallet, Package, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -56,7 +56,9 @@ const ProductsManagement = () => {
 
   const fetchWinredPackages = async (productParentId = 1) => {
     try {
+      console.log('📦 Fetching Winred packages with productParentId:', productParentId);
       const packages = await winredService.getPackages(productParentId);
+      console.log('✅ Packages received:', packages);
       setWinredPackages(packages);
 
       // Clear selections if they're no longer valid
@@ -67,7 +69,7 @@ const ProductsManagement = () => {
         setSelectedPackageSingleId('');
       }
     } catch (error) {
-      console.warn('Winred packages error:', error?.response?.data || error.message);
+      console.error('❌ Winred packages error:', error?.response?.data || error.message);
       setWinredPackages([]);
       setSelectedPackageBulkId('');
       setSelectedPackageSingleId('');
@@ -77,23 +79,27 @@ const ProductsManagement = () => {
 
   const fetchWinredBalance = async () => {
     try {
+      console.log('💰 Fetching Winred balance...');
       const balanceData = await winredService.getBalance();
+      console.log('✅ Balance received:', balanceData);
       setWinredBalance({
         balance: balanceData.balance ?? null,
         discount: balanceData.discount ?? null
       });
     } catch (error) {
-      console.error('Error fetching Winred balance:', error);
+      console.error('❌ Error fetching Winred balance:', error);
       setWinredBalance({ balance: null, discount: null });
     }
   };
 
   const fetchLotes = async () => {
     try {
+      console.log('📋 Fetching lotes...');
       const data = await simsService.getLotes();
+      console.log('✅ Lotes received:', data);
       setLotes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching lotes:', error);
+      console.error('❌ Error fetching lotes:', error);
       setLotes([]);
     }
   };
@@ -220,63 +226,113 @@ const ProductsManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* ====== RECARGAS (WINRED) ====== */}
-      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Recargas (Winred)</span>
-
-            {/* Saldos Winred */}
-            <div className="text-sm">
-              <Badge variant="outline" className="mr-2">
-                Saldo: {winredBalance?.balance !== null && winredBalance?.balance !== undefined
-                  ? formatPrice(winredBalance.balance)
-                  : "—"}
-              </Badge>
-              <Badge variant="outline">
-                Descuentos: {winredBalance?.discount !== null && winredBalance?.discount !== undefined
-                  ? formatPrice(winredBalance.discount)
-                  : "—"}
-              </Badge>
+      {/* Header con estadísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Saldo Winred */}
+        <Card className="bg-gradient-to-br from-localsim-teal-500 to-localsim-teal-600 border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Saldo Disponible</p>
+                <h3 className="text-3xl font-bold text-white mt-1">
+                  {winredBalance?.balance !== null && winredBalance?.balance !== undefined
+                    ? formatPrice(winredBalance.balance)
+                    : formatPrice(0)}
+                </h3>
+                {(winredBalance?.balance === null || winredBalance?.balance === undefined) && (
+                  <p className="text-white/60 text-xs mt-1">No configurado</p>
+                )}
+              </div>
+              <div className="bg-white/20 p-3 rounded-lg">
+                <Wallet className="h-8 w-8 text-white" />
+              </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Descuentos */}
+        <Card className="bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Descuentos</p>
+                <h3 className="text-3xl font-bold text-white mt-1">
+                  {winredBalance?.discount !== null && winredBalance?.discount !== undefined
+                    ? formatPrice(winredBalance.discount)
+                    : formatPrice(0)}
+                </h3>
+                {(winredBalance?.discount === null || winredBalance?.discount === undefined) && (
+                  <p className="text-white/60 text-xs mt-1">No configurado</p>
+                )}
+              </div>
+              <div className="bg-white/20 p-3 rounded-lg">
+                <Package className="h-8 w-8 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Total lotes */}
+        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Lotes Disponibles</p>
+                <h3 className="text-3xl font-bold text-white mt-1">{lotes.length}</h3>
+              </div>
+              <div className="bg-white/20 p-3 rounded-lg">
+                <Phone className="h-8 w-8 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recarga de Lote */}
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-localsim-teal-50 to-white border-b">
+          <CardTitle className="flex items-center gap-2 text-localsim-teal-700">
+            <Package className="h-5 w-5" />
+            Recarga por Lote
           </CardTitle>
         </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* ------- Filtros / Selecciones (Lote) ------- */}
+        <CardContent className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Lote */}
-            <div className="col-span-1">
-              <Label className="mb-1 block">Lote a recargar</Label>
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Lote a recargar</Label>
               <Select value={loteParaRecargar || ""} onValueChange={setLoteParaRecargar}>
-                <SelectTrigger>
+                <SelectTrigger className="border-2 focus:border-localsim-teal-500">
                   <SelectValue placeholder="Selecciona un lote" />
                 </SelectTrigger>
                 <SelectContent>
                   {lotes.map(l => (
                     <SelectItem key={String(l.lote_id)} value={String(l.lote_id)}>
-                      {l.lote_id} — {l.operador} ({l.total_sims} SIMs)
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{l.lote_id}</Badge>
+                        <span>{l.operador}</span>
+                        <span className="text-gray-500">({l.total_sims} SIMs)</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Operador (filtra paquetes) */}
-            <div className="col-span-1">
-              <Label className="mb-1 block">Operador</Label>
+            {/* Operador */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Operador</Label>
               <Select
                 value={selectedOperador}
                 onValueChange={(v) => {
                   setSelectedOperador(v);
-                  const id = Number(v) || 0; // 0=Todos, 1=Claro, 2=Movistar, 3=Tigo
-                  // Limpia ambos selects para que sean independientes
+                  const id = Number(v) || 0;
                   setSelectedPackageBulkId("");
                   setSelectedPackageSingleId("");
                   fetchWinredPackages(id);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-2 focus:border-localsim-teal-500">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -288,11 +344,11 @@ const ProductsManagement = () => {
               </Select>
             </div>
 
-            {/* Paquete Winred (para LOTE) */}
-            <div className="col-span-1">
-              <Label className="mb-1 block">Paquete Winred</Label>
+            {/* Paquete */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Paquete Winred</Label>
               <Select value={selectedPackageBulkId} onValueChange={setSelectedPackageBulkId}>
-                <SelectTrigger>
+                <SelectTrigger className="border-2 focus:border-localsim-teal-500">
                   <SelectValue placeholder="Selecciona un paquete" />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,15 +360,14 @@ const ProductsManagement = () => {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-1">
-                Para paquetes, Winred requiere <b>amount=0</b>. El cargo se hace con el <b>product_id</b> del paquete.
+                * Winred requiere amount=0 para paquetes
               </p>
             </div>
           </div>
 
-          {/* Acción Lote */}
-          <div className="flex items-center justify-end">
+          <div className="flex justify-end">
             <Button
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium px-6 py-2 shadow-md hover:shadow-lg transition-all"
               onClick={() => {
                 setTipoRecarga('lote');
                 setParamsRecarga({
@@ -326,30 +381,40 @@ const ProductsManagement = () => {
               disabled={!loteParaRecargar || !selectedPackageBulkId}
               title={!loteParaRecargar || !selectedPackageBulkId ? "Selecciona lote y paquete" : ""}
             >
-              Recargar lote seleccionado
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Recargar Lote Completo
             </Button>
           </div>
+        </CardContent>
+      </Card>
 
-          <Separator className="my-2" />
-
-          {/* ------- RECARGA INDIVIDUAL ------- */}
+      {/* Recarga Individual */}
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-purple-50 to-white border-b">
+          <CardTitle className="flex items-center gap-2 text-purple-700">
+            <Phone className="h-5 w-5" />
+            Recarga Individual
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            {/* Número a recargar */}
-            <div className="col-span-1">
-              <Label className="mb-1 block">Número / Suscriber</Label>
+            {/* Número */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Número / Suscriber</Label>
               <Input
                 placeholder="Ej: 3181234567"
                 value={msisdnToTopup}
                 onChange={(e) => setMsisdnToTopup(e.target.value.replace(/[^\d]/g, ""))}
                 maxLength={15}
+                className="border-2 focus:border-purple-500 focus:ring-purple-500"
               />
             </div>
 
-            {/* Paquete (Individual) */}
-            <div className="col-span-1">
-              <Label className="mb-1 block">Paquete</Label>
+            {/* Paquete Individual */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Paquete</Label>
               <Select value={selectedPackageSingleId} onValueChange={setSelectedPackageSingleId}>
-                <SelectTrigger>
+                <SelectTrigger className="border-2 focus:border-purple-500">
                   <SelectValue placeholder="Selecciona un paquete" />
                 </SelectTrigger>
                 <SelectContent>
@@ -362,10 +427,10 @@ const ProductsManagement = () => {
               </Select>
             </div>
 
-            {/* Botón Individual */}
-            <div className="col-span-1 flex justify-end">
+            {/* Botón */}
+            <div>
               <Button
-                className="bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium shadow-md hover:shadow-lg transition-all"
                 disabled={!msisdnToTopup || !selectedPackageSingleId}
                 onClick={() => {
                   setTipoRecarga('individual');
@@ -378,7 +443,8 @@ const ProductsManagement = () => {
                   setShowRecargaModal(true);
                 }}
               >
-                Recargar número
+                <Phone className="h-4 w-4 mr-2" />
+                Recargar Número
               </Button>
             </div>
           </div>
@@ -395,52 +461,90 @@ const ProductsManagement = () => {
           }
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[600px] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[600px] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>
-              {recargaStatus === 'idle' && `Confirmar ${tipoRecarga === 'lote' ? 'Recarga de Lote' : 'Recarga Individual'}`}
-              {recargaStatus === 'processing' && 'Procesando Recarga...'}
-              {recargaStatus === 'completed' && 'Recarga Completada Exitosamente'}
-              {recargaStatus === 'completed_with_errors' && 'Recarga Completada con Errores'}
-              {recargaStatus === 'error' && 'Error en Recarga'}
+            <DialogTitle className="flex items-center gap-2">
+              {recargaStatus === 'idle' && (
+                <>
+                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+                  {`Confirmar ${tipoRecarga === 'lote' ? 'Recarga de Lote' : 'Recarga Individual'}`}
+                </>
+              )}
+              {recargaStatus === 'processing' && (
+                <>
+                  <Loader2 className="h-5 w-5 text-localsim-teal-600 animate-spin" />
+                  Procesando Recarga...
+                </>
+              )}
+              {recargaStatus === 'completed' && (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Recarga Completada Exitosamente
+                </>
+              )}
+              {recargaStatus === 'completed_with_errors' && (
+                <>
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  Recarga Completada con Errores
+                </>
+              )}
+              {recargaStatus === 'error' && (
+                <>
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  Error en Recarga
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 flex-1 overflow-auto">
             {recargaStatus === 'idle' && (
-              <>
+              <div className="bg-gray-50 p-6 rounded-lg space-y-3">
                 {tipoRecarga === 'lote' && (
-                  <div>
-                    <p><strong>Lote:</strong> {paramsRecarga.lote_id}</p>
-                    <p><strong>Paquete ID:</strong> {paramsRecarga.product_id}</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Lote:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.lote_id}</Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Paquete ID:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.product_id}</Badge>
+                    </div>
                   </div>
                 )}
 
                 {tipoRecarga === 'individual' && (
-                  <div>
-                    <p><strong>Número:</strong> {paramsRecarga.subscriber}</p>
-                    <p><strong>Paquete ID:</strong> {paramsRecarga.product_id}</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Número:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.subscriber}</Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Paquete ID:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.product_id}</Badge>
+                    </div>
                   </div>
                 )}
 
-                <p className="text-sm text-gray-600">
+                <Separator />
+                <p className="text-sm text-gray-700 text-center">
                   ¿Confirmas esta operación de recarga?
                 </p>
-              </>
+              </div>
             )}
 
             {(recargaStatus === 'processing' || recargaStatus === 'completed' || recargaStatus === 'completed_with_errors' || recargaStatus === 'error') && recargaProgress.length > 0 && (
-              <div className="bg-gray-50 p-4 rounded-md max-h-[400px] overflow-y-auto">
-                <div className="space-y-1 font-mono text-xs">
+              <div className="bg-gray-900 p-4 rounded-lg max-h-[400px] overflow-y-auto">
+                <div className="space-y-1 font-mono text-sm">
                   {recargaProgress.map((log, idx) => (
                     <div
                       key={idx}
                       className={`${
-                        log.type === 'success' ? 'text-green-700' :
-                        log.type === 'error' ? 'text-red-700' :
-                        log.type === 'warning' ? 'text-yellow-700' :
-                        log.type === 'processing' ? 'text-blue-700' :
-                        'text-gray-700'
+                        log.type === 'success' ? 'text-green-400' :
+                        log.type === 'error' ? 'text-red-400' :
+                        log.type === 'warning' ? 'text-yellow-400' :
+                        log.type === 'processing' ? 'text-cyan-400' :
+                        'text-gray-300'
                       }`}
                     >
                       {log.message}
@@ -452,13 +556,23 @@ const ProductsManagement = () => {
             )}
 
             {recargaStatus === 'idle' && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-4">
                 <Button
                   onClick={ejecutarRecarga}
                   disabled={loading}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
                 >
-                  {loading ? 'Procesando...' : 'Confirmar Recarga'}
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Confirmar Recarga
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="outline"
@@ -472,15 +586,16 @@ const ProductsManagement = () => {
             )}
 
             {(recargaStatus === 'completed' || recargaStatus === 'completed_with_errors' || recargaStatus === 'error') && (
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-4">
                 <Button
                   onClick={() => {
                     setShowRecargaModal(false);
                     setRecargaProgress([]);
                     setRecargaStatus('idle');
                   }}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-localsim-teal-500 hover:bg-localsim-teal-600"
                 >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
                   Cerrar
                 </Button>
               </div>

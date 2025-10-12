@@ -54,9 +54,17 @@ const Layout = ({ children, activeTab, onTabChange }) => {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
-              Local SIM Colombia
-            </h1>
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo-local-sim.jpeg"
+                alt="Local SIM"
+                className="h-8 sm:h-10 object-contain"
+                style={{ mixBlendMode: 'screen' }}
+              />
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate hidden sm:block">
+                Local SIM Colombia
+              </h1>
+            </div>
           </div>
 
           {/* Right side */}
@@ -153,28 +161,24 @@ const Layout = ({ children, activeTab, onTabChange }) => {
 
         {/* Sidebar - Responsive */}
         <aside
-          className={`bg-white shadow-sm border-r transition-all duration-300
+          className={`bg-localsim-teal-500 shadow-lg transition-all duration-300 relative
             ${isSidebarCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-16' : 'translate-x-0 w-64'}
             fixed lg:sticky top-[57px] sm:top-[65px] h-[calc(100vh-57px)] sm:h-[calc(100vh-65px)] z-40 lg:z-auto
-            lg:transition-[width] overflow-y-auto`}
+            lg:transition-[width]`}
         >
           {/* Sidebar Toggle Button - Desktop only */}
-          <div className="hidden lg:block absolute -right-3 top-4 z-10">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="rounded-full bg-white shadow-md h-6 w-6 p-0"
-            >
-              <ChevronLeft
-                className={`h-3 w-3 transition-transform ${
-                  isSidebarCollapsed ? 'rotate-180' : ''
-                }`}
-              />
-            </Button>
-          </div>
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden lg:flex absolute -right-4 top-4 z-50 rounded-full bg-white shadow-lg h-8 w-8 border-2 border-localsim-teal-500 hover:bg-localsim-teal-50 items-center justify-center transition-all"
+          >
+            <ChevronLeft
+              className={`h-4 w-4 text-localsim-teal-600 transition-transform ${
+                isSidebarCollapsed ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
-          <nav className="p-3 sm:p-4 space-y-1 sm:space-y-2">
+          <nav className="p-3 sm:p-4 space-y-1 sm:space-y-2 overflow-y-auto h-full">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.value;
@@ -189,10 +193,10 @@ const Layout = ({ children, activeTab, onTabChange }) => {
                       setIsSidebarCollapsed(true);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-3 sm:py-2 rounded-lg text-left transition-colors touch-manipulation ${
+                  className={`w-full flex items-center gap-3 px-3 py-3 sm:py-2 rounded-lg text-left transition-all touch-manipulation ${
                     isActive
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                      ? 'bg-white text-localsim-teal-700 shadow-md'
+                      : 'text-white hover:bg-white/10 active:bg-white/20'
                   }`}
                 >
                   <Icon className="h-5 w-5 sm:h-5 sm:w-5 flex-shrink-0" />

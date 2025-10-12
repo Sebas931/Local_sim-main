@@ -249,7 +249,7 @@ const InventarioSimForm = ({
                           <span className="text-gray-600">Descuadre:</span>
                           <div className={`font-bold text-lg ${
                             inventario.diferencia_final === 0 ? 'text-green-600' :
-                            inventario.diferencia_final > 0 ? 'text-blue-600' : 'text-red-600'
+                            inventario.diferencia_final > 0 ? 'text-localsim-teal-600' : 'text-red-600'
                           }`}>
                             {inventario.diferencia_final > 0 ? '+' : ''}{inventario.diferencia_final}
                             {inventario.diferencia_final === 0 && ' ✓'}
