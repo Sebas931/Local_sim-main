@@ -30,6 +30,12 @@ from schemas.sale_schemas import (
 router = APIRouter(prefix="/api/turnos", tags=["Turnos"])
 logger = logging.getLogger("turnos")
 
+# Endpoint de prueba
+@router.get("/test")
+async def test_endpoint():
+    print("✅ TEST ENDPOINT ALCANZADO")
+    return {"status": "ok", "message": "Turnos router funcionando"}
+
 
 async def _calcular_inventario_sistema_por_plan(db: AsyncSession, plan: str) -> int:
     """Calcula el inventario real disponible en el sistema para un plan específico."""
@@ -127,68 +133,100 @@ async def abrir_turno(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
-    # ¿ya hay turno abierto?
-    result = await db.execute(
-        select(TurnoModel).where(
-            TurnoModel.user_id == current_user.id,
-            TurnoModel.estado == "abierto"
+    try:
+        print(f"\n{'='*80}")
+        print(f"🚀 INICIANDO APERTURA DE TURNO - Usuario: {current_user.id}")
+        print(f"📦 Datos recibidos: {turno_data}")
+        print(f"{'='*80}\n")
+
+        # ¿ya hay turno abierto?
+        result = await db.execute(
+            select(TurnoModel).where(
+                TurnoModel.user_id == current_user.id,
+                TurnoModel.estado == "abierto"
+            )
         )
-    )
-    turno_abierto = result.scalar_one_or_none()
-    if turno_abierto:
-        raise HTTPException(status_code=400, detail="Ya tienes un turno abierto")
+        turno_abierto = result.scalar_one_or_none()
+        if turno_abierto:
+            print(f"⚠️ Usuario {current_user.id} ya tiene un turno abierto: {turno_abierto.id}")
+            raise HTTPException(status_code=400, detail="Ya tienes un turno abierto")
 
-    # fecha_apertura: aware UTC (columna timezone=True)
-    nuevo_turno = TurnoModel(
-        id=uuid4(),
-        user_id=current_user.id,
-        fecha_apertura=datetime.now(timezone.utc),
-        estado="abierto",
-        fecha_cierre=None
-    )
+        print("✓ No hay turno abierto previo, creando nuevo turno...")
 
-    db.add(nuevo_turno)
-    await db.flush()  # Para obtener el ID del turno
-
-    # Registrar inventarios de SIMs si se proporcionaron
-    print(f"\n{'='*80}")
-    print(f"📦 GUARDANDO INVENTARIOS DE APERTURA - Turno ID: {nuevo_turno.id}")
-    print(f"{'='*80}")
-
-    inventarios_creados = []
-    for inventario in turno_data.inventarios:
-        print(f"\n📝 Guardando inventario:")
-        print(f"   Plan: {inventario.plan}")
-        print(f"   Cantidad reportada: {inventario.cantidad_reportada}")
-        print(f"   Observaciones: {inventario.observaciones or 'N/A'}")
-
-        # No calcular inventario del sistema - será manual
-        inventario_sim = InventarioSimTurno(
+        # fecha_apertura: aware UTC (columna timezone=True)
+        nuevo_turno = TurnoModel(
             id=uuid4(),
-            turno_id=nuevo_turno.id,
-            plan=inventario.plan,
-            cantidad_inicial_reportada=inventario.cantidad_reportada,
-            cantidad_inicial_sistema=0,  # Será manual, no calculado automáticamente
-            observaciones_apertura=inventario.observaciones,
-            fecha_registro=datetime.now(timezone.utc)
+            user_id=current_user.id,
+            fecha_apertura=datetime.now(timezone.utc),
+            estado="abierto",
+            fecha_cierre=None
         )
-        db.add(inventario_sim)
-        inventarios_creados.append(inventario_sim)
 
-    await db.commit()
-    print(f"\n✅ Se guardaron {len(inventarios_creados)} inventarios de apertura")
-    print(f"{'='*80}\n")
-    await db.refresh(nuevo_turno)
+        db.add(nuevo_turno)
+        await db.flush()  # Para obtener el ID del turno
+        print(f"✓ Turno creado con ID: {nuevo_turno.id}")
 
-    # Preparar respuesta simple sin relaciones complejas
-    return {
-        "id": str(nuevo_turno.id),
-        "user_id": nuevo_turno.user_id,
-        "fecha_apertura": nuevo_turno.fecha_apertura,
-        "fecha_cierre": nuevo_turno.fecha_cierre,
-        "estado": nuevo_turno.estado,
-        "inventarios_creados": len(inventarios_creados)
-    }
+        # Registrar inventarios de SIMs si se proporcionaron
+        print(f"\n{'='*80}")
+        print(f"📦 GUARDANDO INVENTARIOS DE APERTURA - Turno ID: {nuevo_turno.id}")
+        print(f"{'='*80}")
+
+        inventarios_creados = []
+        for inventario in turno_data.inventarios:
+            print(f"\n📝 Guardando inventario:")
+            print(f"   Plan: {inventario.plan}")
+            print(f"   Cantidad reportada: {inventario.cantidad_reportada}")
+            print(f"   Observaciones: {inventario.observaciones or 'N/A'}")
+
+            # No calcular inventario del sistema - será manual
+            inventario_sim = InventarioSimTurno(
+                id=uuid4(),
+                turno_id=nuevo_turno.id,
+                plan=inventario.plan,
+                cantidad_inicial_reportada=inventario.cantidad_reportada,
+                cantidad_inicial_sistema=0,  # Será manual, no calculado automáticamente
+                observaciones_apertura=inventario.observaciones,
+                fecha_registro=datetime.now(timezone.utc)
+            )
+            db.add(inventario_sim)
+            inventarios_creados.append(inventario_sim)
+            print(f"   ✓ Inventario agregado a la sesión")
+
+        print(f"\n💾 Guardando en base de datos...")
+        await db.commit()
+        print(f"✅ Se guardaron {len(inventarios_creados)} inventarios de apertura")
+        print(f"{'='*80}\n")
+
+        await db.refresh(nuevo_turno)
+        print(f"✓ Turno refrescado desde DB")
+
+        # Preparar respuesta simple sin relaciones complejas
+        response_data = {
+            "id": str(nuevo_turno.id),
+            "user_id": nuevo_turno.user_id,
+            "fecha_apertura": nuevo_turno.fecha_apertura.isoformat() if nuevo_turno.fecha_apertura else None,
+            "fecha_cierre": nuevo_turno.fecha_cierre.isoformat() if nuevo_turno.fecha_cierre else None,
+            "estado": nuevo_turno.estado,
+            "inventarios_creados": len(inventarios_creados)
+        }
+
+        print(f"✓ Respuesta preparada: {response_data}")
+        print(f"{'='*80}\n")
+        return response_data
+
+    except HTTPException as he:
+        print(f"\n❌ HTTPException capturada: {he.status_code} - {he.detail}")
+        await db.rollback()
+        raise
+    except Exception as e:
+        print(f"\n❌ ERROR CRÍTICO en abrir_turno:")
+        print(f"   Tipo: {type(e).__name__}")
+        print(f"   Mensaje: {str(e)}")
+        import traceback
+        print(f"   Traceback:\n{traceback.format_exc()}")
+        await db.rollback()
+        logger.exception("Error abriendo turno — user=%s, data=%s", getattr(current_user, "id", None), turno_data)
+        raise HTTPException(status_code=500, detail=f"Error interno al abrir el turno: {str(e)}")
 
 
 @router.post("/cerrar-con-inventario", response_model=CierreCaja)

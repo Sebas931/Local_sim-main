@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, DollarSign, Activity, AlertTriangle, Package,
   TrendingUp, Users, Clock, RotateCcw, ArrowUpDown,
-  TrendingDown, Eye, RefreshCw
+  TrendingDown, Eye, RefreshCw, Search, GitBranch
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -44,10 +44,16 @@ const Dashboard = () => {
   const [ventasData, setVentasData] = useState(null);
   const [cierresData, setCierresData] = useState(null);
   const [devolucionesData, setDevolucionesData] = useState(null);
+  const [trazabilidadData, setTrazabilidadData] = useState(null);
 
   // Filtros
   const [soloDescuadres, setSoloDescuadres] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Filtros de trazabilidad
+  const [filtroIccid, setFiltroIccid] = useState('');
+  const [filtroNumeroLinea, setFiltroNumeroLinea] = useState('');
+  const [filtroLoteId, setFiltroLoteId] = useState('');
 
   // Carga inicial
   useEffect(() => {
@@ -56,8 +62,12 @@ const Dashboard = () => {
 
   // Recargar cuando cambia de pestaña
   useEffect(() => {
-    if (activeTab !== 'inventario') {
+    if (activeTab !== 'inventario' && activeTab !== 'trazabilidad') {
       loadTabData();
+    }
+    // Cargar trazabilidad automáticamente al entrar al tab
+    if (activeTab === 'trazabilidad' && !trazabilidadData) {
+      loadTrazabilidadData();
     }
   }, [activeTab]);
 
@@ -153,6 +163,11 @@ const Dashboard = () => {
           console.log('✅ Devoluciones cargadas:', devoluciones);
           setDevolucionesData(devoluciones);
           break;
+        case 'trazabilidad':
+          console.log('📊 Cargando trazabilidad...');
+          // La trazabilidad se carga bajo demanda con el botón de búsqueda
+          // No se carga automáticamente al cambiar de pestaña
+          break;
       }
       showNotification('Datos actualizados correctamente', 'success');
     } catch (error) {
@@ -209,6 +224,56 @@ const Dashboard = () => {
   };
 
   const PIE_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#8B5CF6'];
+
+  // Función para cargar todas las SIMs (trazabilidad inicial)
+  const loadTrazabilidadData = async () => {
+    setLoading(true);
+    try {
+      console.log('🔍 Cargando trazabilidad de todas las SIMs...');
+
+      const data = await dashboardService.getTrazabilidad({
+        iccid: null,
+        numero_linea: null,
+        lote_id: null
+      });
+
+      console.log('✅ Trazabilidad cargada:', data);
+      setTrazabilidadData(data);
+      showNotification(`Se encontraron ${data.total} SIM(s)`, 'success');
+    } catch (error) {
+      console.error('❌ Error al cargar trazabilidad:', error);
+      showNotification('Error al cargar trazabilidad de SIMs', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para buscar trazabilidad de SIMs con filtros
+  const searchTrazabilidad = async () => {
+    setLoading(true);
+    try {
+      console.log('🔍 Buscando trazabilidad con filtros:', {
+        iccid: filtroIccid,
+        numero_linea: filtroNumeroLinea,
+        lote_id: filtroLoteId
+      });
+
+      const data = await dashboardService.getTrazabilidad({
+        iccid: filtroIccid || null,
+        numero_linea: filtroNumeroLinea || null,
+        lote_id: filtroLoteId || null
+      });
+
+      console.log('✅ Trazabilidad cargada:', data);
+      setTrazabilidadData(data);
+      showNotification(`Se encontraron ${data.total} SIM(s)`, 'success');
+    } catch (error) {
+      console.error('❌ Error al buscar trazabilidad:', error);
+      showNotification('Error al buscar trazabilidad de SIMs', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading && !statsGeneral) {
     return (
@@ -456,7 +521,8 @@ const Dashboard = () => {
               { key: 'inventario', label: 'Inventario', icon: Package },
               { key: 'ventas', label: 'Ventas', icon: TrendingUp },
               { key: 'cierres', label: 'Cierres', icon: Clock },
-              { key: 'devoluciones', label: 'Devoluciones', icon: RotateCcw }
+              { key: 'devoluciones', label: 'Devoluciones', icon: RotateCcw },
+              { key: 'trazabilidad', label: 'Trazabilidad', icon: GitBranch }
             ].map(tab => {
               const IconComponent = tab.icon;
               const isActive = activeTab === tab.key;
@@ -498,6 +564,8 @@ const Dashboard = () => {
         return renderCierresTab();
       case 'devoluciones':
         return renderDevolucionesTab();
+      case 'trazabilidad':
+        return renderTrazabilidadTab();
       default:
         return renderGeneralTab();
     }
@@ -1073,6 +1141,354 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
+        )}
+      </div>
+    );
+  }
+
+  function renderTrazabilidadTab() {
+    return (
+      <div className="space-y-6">
+        {/* Filtros de búsqueda */}
+        <Card className="border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+            <CardTitle className="flex items-center gap-2 text-indigo-700">
+              <Search className="h-5 w-5" />
+              Filtrar SIMs (Opcional)
+            </CardTitle>
+            <CardDescription>
+              Por defecto se muestran todas las SIMs. Puede filtrar por ICCID, número de línea o ID de lote
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="filtro-iccid" className="text-sm font-semibold text-gray-700">
+                  ICCID
+                </Label>
+                <Input
+                  id="filtro-iccid"
+                  type="text"
+                  placeholder="Ej: 89570..."
+                  value={filtroIccid}
+                  onChange={(e) => setFiltroIccid(e.target.value)}
+                  className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="filtro-numero" className="text-sm font-semibold text-gray-700">
+                  Número de Línea
+                </Label>
+                <Input
+                  id="filtro-numero"
+                  type="text"
+                  placeholder="Ej: 3001234567"
+                  value={filtroNumeroLinea}
+                  onChange={(e) => setFiltroNumeroLinea(e.target.value)}
+                  className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="filtro-lote" className="text-sm font-semibold text-gray-700">
+                  ID de Lote
+                </Label>
+                <Input
+                  id="filtro-lote"
+                  type="text"
+                  placeholder="Ej: 123"
+                  value={filtroLoteId}
+                  onChange={(e) => setFiltroLoteId(e.target.value)}
+                  className="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={searchTrazabilidad}
+                disabled={loading}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                {filtroIccid || filtroNumeroLinea || filtroLoteId ? 'Filtrar' : 'Actualizar'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setFiltroIccid('');
+                  setFiltroNumeroLinea('');
+                  setFiltroLoteId('');
+                  loadTrazabilidadData();
+                }}
+                variant="outline"
+                className="border-gray-300 hover:bg-gray-50"
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Limpiar y Recargar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Resultados */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-4 text-gray-500">Buscando trazabilidad...</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && trazabilidadData && trazabilidadData.total === 0 && (
+          <Card className="border-0 shadow-md">
+            <CardContent className="p-12 text-center">
+              <div className="text-gray-400 mb-4">
+                <Search className="h-16 w-16 mx-auto" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                No se encontraron resultados
+              </h3>
+              <p className="text-gray-500">
+                {trazabilidadData.mensaje || 'Intente con otros criterios de búsqueda'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && trazabilidadData && trazabilidadData.sims && trazabilidadData.sims.length > 0 && (
+          <div className="space-y-6">
+            {/* Resumen de búsqueda */}
+            <Card className="border-0 shadow-md bg-gradient-to-r from-indigo-50 to-purple-50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-500 p-2 rounded-lg">
+                    <Eye className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-indigo-900">
+                      {trazabilidadData.filtros_aplicados.iccid || trazabilidadData.filtros_aplicados.numero_linea || trazabilidadData.filtros_aplicados.lote_id
+                        ? `Se encontraron ${trazabilidadData.total} SIM(s) con los filtros aplicados`
+                        : `Mostrando ${trazabilidadData.total} SIM(s) más recientes`
+                      }
+                    </h3>
+                    <p className="text-sm text-indigo-700">
+                      {trazabilidadData.filtros_aplicados.iccid && `ICCID: ${trazabilidadData.filtros_aplicados.iccid} `}
+                      {trazabilidadData.filtros_aplicados.numero_linea && `Línea: ${trazabilidadData.filtros_aplicados.numero_linea} `}
+                      {trazabilidadData.filtros_aplicados.lote_id && `Lote: ${trazabilidadData.filtros_aplicados.lote_id}`}
+                      {!trazabilidadData.filtros_aplicados.iccid && !trazabilidadData.filtros_aplicados.numero_linea && !trazabilidadData.filtros_aplicados.lote_id &&
+                        'Use los filtros arriba para buscar SIMs específicas'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Listado de SIMs con su trazabilidad */}
+            {trazabilidadData.sims.map((simData, idx) => (
+              <Card key={idx} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
+                        <GitBranch className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-indigo-900">
+                          {simData.sim.operador} - {simData.sim.plan_asignado || 'Sin plan'}
+                        </CardTitle>
+                        <CardDescription>
+                          ICCID: {simData.sim.iccid} | Línea: {simData.sim.numero_linea || 'N/A'} | Lote: {simData.sim.lote_id}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                        simData.sim.estado === 'vendido'
+                          ? 'bg-green-100 text-green-800'
+                          : simData.sim.estado === 'available'
+                          ? 'bg-blue-100 text-blue-800'
+                          : simData.sim.estado === 'recargado'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {simData.sim.estado}
+                      </span>
+                      {simData.resumen.tiene_devoluciones && (
+                        <span className="px-3 py-1 text-xs bg-orange-100 text-orange-800 rounded-full font-medium">
+                          Con devoluciones
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="pt-6">
+                  {/* Resumen rápido */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
+                      <Activity className="h-8 w-8 text-blue-600" />
+                      <div>
+                        <p className="text-xs text-blue-700 font-medium">Total Eventos</p>
+                        <p className="text-xl font-bold text-blue-900">{simData.resumen.total_eventos}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
+                      <RotateCcw className="h-8 w-8 text-purple-600" />
+                      <div>
+                        <p className="text-xs text-purple-700 font-medium">Devoluciones</p>
+                        <p className="text-xl font-bold text-purple-900">{simData.devoluciones?.length || 0}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
+                      <DollarSign className="h-8 w-8 text-green-600" />
+                      <div>
+                        <p className="text-xs text-green-700 font-medium">Estado Venta</p>
+                        <p className="text-xl font-bold text-green-900">
+                          {simData.resumen.esta_vendida ? 'Vendida' : 'Disponible'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  {/* Cronología de eventos */}
+                  <div>
+                    <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-indigo-600" />
+                      Cronología de Eventos
+                    </h4>
+                    <div className="space-y-3">
+                      {simData.eventos.map((evento, eventIdx) => (
+                        <div key={eventIdx} className="flex gap-4 items-start">
+                          <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${
+                            evento.tipo === 'registro' ? 'bg-blue-500' :
+                            evento.tipo === 'recarga' ? 'bg-purple-500' :
+                            evento.tipo === 'devolucion' ? 'bg-orange-500' :
+                            evento.tipo === 'venta' ? 'bg-green-500' :
+                            'bg-gray-500'
+                          }`}></div>
+                          <div className="flex-1 pb-4 border-l-2 border-gray-200 pl-4 -ml-[5px]">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`px-2 py-1 text-xs rounded font-medium ${
+                                    evento.tipo === 'registro' ? 'bg-blue-100 text-blue-800' :
+                                    evento.tipo === 'recarga' ? 'bg-purple-100 text-purple-800' :
+                                    evento.tipo === 'devolucion' ? 'bg-orange-100 text-orange-800' :
+                                    evento.tipo === 'venta' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {evento.tipo.charAt(0).toUpperCase() + evento.tipo.slice(1)}
+                                  </span>
+                                  {evento.usuario && (
+                                    <span className="text-xs text-gray-600">
+                                      por <strong>{evento.usuario}</strong>
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-800">{evento.descripcion}</p>
+                                {evento.motivo && (
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Motivo: {evento.motivo}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 whitespace-nowrap">
+                                {formatDateTime(evento.fecha)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Información de venta (si existe) */}
+                  {simData.venta && (
+                    <>
+                      <Separator className="my-6" />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <DollarSign className="h-5 w-5 text-green-600" />
+                          Detalle de Venta
+                        </h4>
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-xs text-green-700 font-medium mb-1">ID Venta</p>
+                              <p className="text-sm font-mono text-green-900">{simData.venta.id}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-green-700 font-medium mb-1">Fecha</p>
+                              <p className="text-sm text-green-900">{formatDateTime(simData.venta.fecha)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-green-700 font-medium mb-1">Total</p>
+                              <p className="text-sm font-bold text-green-900">{formatPrice(simData.venta.total)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-green-700 font-medium mb-1">Método de Pago</p>
+                              <p className="text-sm text-green-900 capitalize">{simData.venta.metodo_pago}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Devoluciones (si existen) */}
+                  {simData.devoluciones && simData.devoluciones.length > 0 && (
+                    <>
+                      <Separator className="my-6" />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <RotateCcw className="h-5 w-5 text-orange-600" />
+                          Historial de Devoluciones
+                        </h4>
+                        <div className="space-y-3">
+                          {simData.devoluciones.map((dev, devIdx) => (
+                            <div key={devIdx} className="bg-gradient-to-br from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <div>
+                                  <p className="text-xs text-orange-700 font-medium mb-1">Tipo</p>
+                                  <p className="text-sm text-orange-900 capitalize">{dev.tipo}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-orange-700 font-medium mb-1">Fecha</p>
+                                  <p className="text-sm text-orange-900">{formatDateTime(dev.fecha)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-orange-700 font-medium mb-1">Usuario</p>
+                                  <p className="text-sm text-orange-900">{dev.usuario}</p>
+                                </div>
+                                <div className="col-span-2 md:col-span-3">
+                                  <p className="text-xs text-orange-700 font-medium mb-1">Motivo</p>
+                                  <p className="text-sm text-orange-900">{dev.motivo}</p>
+                                </div>
+                                {dev.sim_reemplazo_iccid && (
+                                  <div className="col-span-2 md:col-span-3">
+                                    <p className="text-xs text-orange-700 font-medium mb-1">SIM de Reemplazo</p>
+                                    <p className="text-sm text-orange-900 font-mono">
+                                      ICCID: {dev.sim_reemplazo_iccid} | Línea: {dev.sim_reemplazo_numero}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     );

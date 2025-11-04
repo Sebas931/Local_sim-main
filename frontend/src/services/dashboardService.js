@@ -88,6 +88,19 @@ export const dashboardService = {
     return data;
   },
 
+  // Trazabilidad de SIMs
+  // Espera: { iccid, numero_linea, lote_id }
+  async getTrazabilidad({
+    iccid = null,
+    numero_linea = null,
+    lote_id = null,
+  } = {}) {
+    const { data } = await api.get('/api/dashboard/trazabilidad', {
+      params: clean({ iccid, numero_linea, lote_id }),
+    });
+    return data;
+  },
+
   // Legacy (por si aún lo usas en otra vista)
   async getAnalytics({ date_from, date_to, only_diffs = false } = {}) {
     const { data } = await api.get('/api/sims/dashboard/analytics', {

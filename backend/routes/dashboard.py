@@ -912,3 +912,231 @@ async def get_inventarios_descuadres(
         "user_id": user_id,
         "solo_con_descuadres": solo_con_descuadres
     }
+
+
+@router.get("/trazabilidad")
+async def get_trazabilidad_sims(
+    iccid: Optional[str] = None,
+    numero_linea: Optional[str] = None,
+    lote_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Trazabilidad completa de SIMs mostrando su ciclo de vida:
+    - Registro inicial
+    - Recargas realizadas
+    - Devoluciones (si las hay)
+    - Venta final
+
+    Puede filtrar por ICCID, número de línea o lote
+    """
+    print(f"[TRAZABILIDAD] Búsqueda: iccid={iccid}, numero_linea={numero_linea}, lote_id={lote_id}")
+
+    # Construir la consulta base para obtener todas las SIMs
+    where_clauses = []
+    query_params = {}
+
+    if iccid:
+        where_clauses.append("s.iccid LIKE :iccid")
+        query_params["iccid"] = f"%{iccid}%"
+
+    if numero_linea:
+        where_clauses.append("s.numero_linea LIKE :numero_linea")
+        query_params["numero_linea"] = f"%{numero_linea}%"
+
+    if lote_id:
+        where_clauses.append("s.lote_id = :lote_id")
+        query_params["lote_id"] = lote_id
+
+    if not where_clauses:
+        # Si no hay filtros, retornar últimas 50 SIMs vendidas
+        where_clause = "s.vendida = true"
+    else:
+        where_clause = " AND ".join(where_clauses)
+
+    # Consulta principal para obtener las SIMs con información básica
+    sql_sims = text(f"""
+        SELECT
+            s.id,
+            s.iccid,
+            s.numero_linea,
+            s.lote_id,
+            s.estado,
+            s.plan_asignado,
+            s.fecha_registro,
+            s.fecha_ultima_recarga,
+            s.vendida,
+            s.fecha_venta,
+            s.venta_id,
+            l.operador,
+            l.fecha_registro as lote_fecha_registro
+        FROM sim_detalle s
+        JOIN sim_lotes l ON s.lote_id = l.id
+        WHERE {where_clause}
+        ORDER BY s.fecha_venta DESC NULLS LAST, s.fecha_registro DESC
+        LIMIT 50
+    """)
+
+    result = await db.execute(sql_sims, query_params)
+    sims = result.mappings().all()
+
+    if not sims:
+        return {
+            "sims": [],
+            "total": 0,
+            "mensaje": "No se encontraron SIMs con los criterios especificados"
+        }
+
+    trazabilidad_lista = []
+
+    for sim in sims:
+        sim_id = sim["id"]
+        venta_id = sim["venta_id"]
+
+        # 1. Información de venta (si existe)
+        venta_info = None
+        if venta_id:
+            sql_venta = text("""
+                SELECT
+                    s.id,
+                    s.created_at,
+                    s.total,
+                    s.payment_method,
+                    s.user_id,
+                    u.full_name,
+                    u.username
+                FROM sales s
+                LEFT JOIN users u ON s.user_id = u.id
+                WHERE s.id = :venta_id
+            """)
+            venta_result = await db.execute(sql_venta, {"venta_id": venta_id})
+            venta_row = venta_result.mappings().first()
+
+            if venta_row:
+                venta_info = {
+                    "id": str(venta_row["id"]),
+                    "fecha": venta_row["created_at"],
+                    "total": float(venta_row["total"]) if venta_row["total"] else 0,
+                    "metodo_pago": venta_row["payment_method"],
+                    "usuario": venta_row["full_name"] or venta_row["username"],
+                    "user_id": venta_row["user_id"]
+                }
+
+        # 2. Información de devoluciones (si existen)
+        sql_devoluciones = text("""
+            SELECT
+                d.id,
+                d.fecha_devolucion,
+                d.tipo_devolucion,
+                d.motivo,
+                d.user_id,
+                u.full_name,
+                u.username,
+                d.sim_reemplazo_iccid,
+                d.sim_reemplazo_numero
+            FROM devoluciones_sim d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.sim_defectuosa_id = :sim_id
+            ORDER BY d.fecha_devolucion DESC
+        """)
+        devoluciones_result = await db.execute(sql_devoluciones, {"sim_id": sim_id})
+        devoluciones_rows = devoluciones_result.mappings().all()
+
+        devoluciones = []
+        for dev in devoluciones_rows:
+            devoluciones.append({
+                "id": str(dev["id"]),
+                "fecha": dev["fecha_devolucion"],
+                "tipo": dev["tipo_devolucion"],
+                "motivo": dev["motivo"],
+                "usuario": dev["full_name"] or dev["username"],
+                "user_id": dev["user_id"],
+                "sim_reemplazo_iccid": dev["sim_reemplazo_iccid"],
+                "sim_reemplazo_numero": dev["sim_reemplazo_numero"]
+            })
+
+        # 3. Construir cronología de eventos
+        eventos = []
+
+        # Evento: Registro
+        eventos.append({
+            "tipo": "registro",
+            "fecha": sim["fecha_registro"],
+            "descripcion": f"SIM registrada en lote {sim['lote_id']}",
+            "operador": sim["operador"]
+        })
+
+        # Evento: Recarga (si existe)
+        if sim["fecha_ultima_recarga"]:
+            eventos.append({
+                "tipo": "recarga",
+                "fecha": sim["fecha_ultima_recarga"],
+                "descripcion": f"Recargada con plan {sim['plan_asignado']}",
+                "plan": sim["plan_asignado"]
+            })
+
+        # Eventos: Devoluciones
+        for dev in devoluciones:
+            eventos.append({
+                "tipo": "devolucion",
+                "fecha": dev["fecha"],
+                "descripcion": f"Devolución ({dev['tipo']}) - {dev['motivo']}",
+                "usuario": dev["usuario"],
+                "tipo_devolucion": dev["tipo"],
+                "motivo": dev["motivo"]
+            })
+
+        # Evento: Venta
+        if venta_info:
+            eventos.append({
+                "tipo": "venta",
+                "fecha": venta_info["fecha"],
+                "descripcion": f"Vendida por ${venta_info['total']:,.0f}",
+                "usuario": venta_info["usuario"],
+                "metodo_pago": venta_info["metodo_pago"],
+                "total": venta_info["total"]
+            })
+
+        # Ordenar eventos por fecha (normalizar a naive datetime)
+        def get_fecha_for_sort(evento):
+            fecha = evento.get("fecha")
+            if not fecha:
+                return datetime.min
+            # Si es timezone-aware, convertir a naive
+            if hasattr(fecha, 'tzinfo') and fecha.tzinfo is not None:
+                return fecha.replace(tzinfo=None)
+            return fecha
+
+        eventos.sort(key=get_fecha_for_sort)
+
+        trazabilidad_lista.append({
+            "sim": {
+                "id": sim["id"],
+                "iccid": sim["iccid"],
+                "numero_linea": sim["numero_linea"],
+                "lote_id": sim["lote_id"],
+                "operador": sim["operador"],
+                "estado": sim["estado"],
+                "plan_asignado": sim["plan_asignado"],
+                "vendida": sim["vendida"]
+            },
+            "venta": venta_info,
+            "devoluciones": devoluciones,
+            "eventos": eventos,
+            "resumen": {
+                "total_eventos": len(eventos),
+                "tiene_devoluciones": len(devoluciones) > 0,
+                "esta_vendida": sim["vendida"]
+            }
+        })
+
+    return {
+        "sims": trazabilidad_lista,
+        "total": len(trazabilidad_lista),
+        "filtros_aplicados": {
+            "iccid": iccid,
+            "numero_linea": numero_linea,
+            "lote_id": lote_id
+        }
+    }

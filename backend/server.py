@@ -52,6 +52,10 @@ from routes.turnos import router as turnos_router
 from routes.winred import router as winred_router
 from routes.devoluciones import router as devoluciones_router
 
+print(f"🔍 Turnos router importado: {turnos_router}")
+print(f"🔍 Turnos router prefix: {turnos_router.prefix}")
+print(f"🔍 Turnos router routes: {[route.path for route in turnos_router.routes]}")
+
 # Routers
 app.include_router(sales_router, prefix="/api")
 app.include_router(products_router, prefix="/api")
@@ -61,6 +65,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/users", tags=["Usuarios"])
 app.include_router(roles.router, prefix="/api/roles", tags=["Roles"])
 app.include_router(turnos_router)
+print("✅ Turnos router incluido en la aplicación")
 app.include_router(winred_router, prefix="/api/winred", tags=["Winred"])
 app.include_router(devoluciones_router, prefix="/api/devoluciones", tags=["Devoluciones"])
 
@@ -74,6 +79,15 @@ async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("Tablas verificadas o creadas")
+
+    # Debug: Listar todas las rutas registradas
+    print("\n" + "="*80)
+    print("📋 RUTAS REGISTRADAS EN FASTAPI:")
+    print("="*80)
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            print(f"  {list(route.methods)[0] if route.methods else 'N/A':6} {route.path}")
+    print("="*80 + "\n")
 
 # Modelos
 class TaxItem(BaseModel):
