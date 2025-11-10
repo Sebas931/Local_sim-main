@@ -23,6 +23,12 @@ class EstadoVenta(str, enum.Enum):
     activa = "activa"
     anulada = "anulada"
 
+class ESimStatus(str, enum.Enum):
+    disponible = "disponible"
+    vendida = "vendida"
+    vencida = "vencida"
+    inactiva = "inactiva"
+
 class Sale(Base):
     __tablename__ = 'sales'
 
@@ -223,6 +229,48 @@ class DevolucionSim(Base):
     sim_defectuosa = relationship("SimDetalle", foreign_keys=[sim_defectuosa_id])
     sim_reemplazo = relationship("SimDetalle", foreign_keys=[sim_reemplazo_id])
     turno = relationship("Turno")
+
+
+class ESim(Base):
+    """Modelo para gestión de eSIMs con regeneración de QR"""
+    __tablename__ = "esims"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Identificadores únicos
+    iccid = Column(String(20), unique=True, nullable=False, index=True)
+    numero_telefono = Column(String(15), unique=True, nullable=False, index=True)
+
+    # Estado actual
+    estado = Column(Enum(ESimStatus), default=ESimStatus.disponible, nullable=False, index=True)
+
+    # Información del QR Code
+    qr_code_data = Column(Text, nullable=True)  # Datos del QR o base64
+    qr_code_url = Column(String(500), nullable=True)  # URL si se almacena en cloud
+
+    # Información de venta y vencimiento
+    fecha_venta = Column(DateTime(timezone=True), nullable=True)
+    fecha_vencimiento = Column(DateTime(timezone=True), nullable=True, index=True)
+    plan_dias = Column(Integer, nullable=True)  # Duración del plan en días
+    plan_nombre = Column(String(50), nullable=True)  # Nombre del plan (e.g., "30 días 20GB")
+
+    # Relación con venta
+    sale_id = Column(UUID(as_uuid=True), ForeignKey("sales.id"), nullable=True)
+    sale = relationship("Sale")
+
+    # Historial y control
+    historial_regeneraciones = Column(Integer, default=0, nullable=False)
+    ultima_regeneracion = Column(DateTime(timezone=True), nullable=True)
+
+    # Operador
+    operador = Column(String(50), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Observaciones
+    observaciones = Column(Text, nullable=True)
 
 
 class InventarioSimTurno(Base):

@@ -11,6 +11,7 @@ import './App.css';
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 const SalesPointOfSale = React.lazy(() => import('./components/sales/SalesPointOfSale'));
 const SimsManagement = React.lazy(() => import('./components/sims/SimsManagement'));
+const ESimDashboard = React.lazy(() => import('./components/esims/ESimDashboard'));
 const ProductsManagement = React.lazy(() => import('./components/products/ProductsManagement'));
 const Devoluciones = React.lazy(() => import('./components/devoluciones/Devoluciones'));
 const TurnosManagement = React.lazy(() => import('./components/turnos/TurnosManagement'));
@@ -73,6 +74,8 @@ const AppContent = () => {
         return <SalesPointOfSale />;
       case 'sims':
         return <SimsManagement />;
+      case 'esims':
+        return <ESimDashboard />;
       case 'products':
         return <ProductsManagement />;
       case 'devoluciones':

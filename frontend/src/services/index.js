@@ -6,6 +6,7 @@ export { authService } from './authService';
 export { salesService } from './salesService';
 export { productsService } from './productsService';
 export { simsService } from './simsService';
+export { esimsService } from './esimsService';
 export { dashboardService } from './dashboardService';
 export { usersService } from './usersService';
 export { turnosService } from './turnosService';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, ShoppingCart, Package, Phone, User, Clock, Menu, ChevronLeft, LogOut, Play, Square, ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import { BarChart3, ShoppingCart, Package, Phone, User, Clock, Menu, ChevronLeft, LogOut, Play, Square, ArrowRightLeft, AlertTriangle, Smartphone } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../context/AuthContext';
@@ -20,6 +20,7 @@ const Layout = ({ children, activeTab, onTabChange }) => {
     { module: 'Dashboard', value: 'dashboard', name: 'Dashboard', icon: BarChart3 },
     { module: 'Punto de venta', value: 'pos', name: 'Punto de Venta', icon: ShoppingCart },
     { module: 'Sims', value: 'sims', name: 'SIMs', icon: Package },
+    { module: 'eSims', value: 'esims', name: 'eSIMs', icon: Smartphone },
     { module: 'Recargas', value: 'products', name: 'Recargas', icon: Phone },
     { module: 'Devoluciones', value: 'devoluciones', name: 'Devoluciones', icon: ArrowRightLeft },
     { module: 'Usuarios', value: 'users', name: 'Usuarios', icon: User},

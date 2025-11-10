@@ -10,10 +10,13 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from database import engine, get_async_session
 from models import Base, User
-from services.sales import save_sale_to_db  
+from services.sales import save_sale_to_db
 from fastapi import Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.auth_utils import get_current_user
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from jobs.esim_expiration_job import process_esim_expirations
 
 
 
@@ -51,6 +54,7 @@ from routes import roles
 from routes.turnos import router as turnos_router
 from routes.winred import router as winred_router
 from routes.devoluciones import router as devoluciones_router
+from routes.esims import router as esims_router
 
 print(f"🔍 Turnos router importado: {turnos_router}")
 print(f"🔍 Turnos router prefix: {turnos_router.prefix}")
@@ -68,6 +72,8 @@ app.include_router(turnos_router)
 print("✅ Turnos router incluido en la aplicación")
 app.include_router(winred_router, prefix="/api/winred", tags=["Winred"])
 app.include_router(devoluciones_router, prefix="/api/devoluciones", tags=["Devoluciones"])
+app.include_router(esims_router, prefix="/api", tags=["eSIMs"])
+print("✅ eSIMs router incluido en la aplicación")
 
 
 
@@ -79,6 +85,21 @@ async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("Tablas verificadas o creadas")
+
+    # Configurar scheduler para jobs automáticos
+    scheduler = AsyncIOScheduler()
+
+    # Job de vencimiento de eSIMs - ejecutar cada hora
+    scheduler.add_job(
+        process_esim_expirations,
+        trigger=CronTrigger(hour='*'),  # Cada hora
+        id='esim_expiration_job',
+        name='Procesamiento automático de vencimientos de eSIMs',
+        replace_existing=True
+    )
+
+    scheduler.start()
+    print("✅ Scheduler iniciado - Job de vencimiento de eSIMs configurado (cada hora)")
 
     # Debug: Listar todas las rutas registradas
     print("\n" + "="*80)
