@@ -54,7 +54,7 @@ from routes import roles
 from routes.turnos import router as turnos_router
 from routes.winred import router as winred_router
 from routes.devoluciones import router as devoluciones_router
-from routes.esims import router as esims_router
+# from routes.esims import router as esims_router  # Temporalmente deshabilitado - requiere OpenCV
 
 print(f"🔍 Turnos router importado: {turnos_router}")
 print(f"🔍 Turnos router prefix: {turnos_router.prefix}")
@@ -72,8 +72,8 @@ app.include_router(turnos_router)
 print("✅ Turnos router incluido en la aplicación")
 app.include_router(winred_router, prefix="/api/winred", tags=["Winred"])
 app.include_router(devoluciones_router, prefix="/api/devoluciones", tags=["Devoluciones"])
-app.include_router(esims_router, prefix="/api", tags=["eSIMs"])
-print("✅ eSIMs router incluido en la aplicación")
+# app.include_router(esims_router, prefix="/api", tags=["eSIMs"])  # Temporalmente deshabilitado - requiere OpenCV
+# print("✅ eSIMs router incluido en la aplicación")
 
 
 
