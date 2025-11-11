@@ -59,10 +59,28 @@ def _now_reqdate() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".000"
 
 def _filter_allowed_packages_in_resp(resp: dict) -> dict:
+    """
+    Filtra los paquetes permitidos y transforma sus nombres para ocultar precios
+    """
+    # Mapeo de product_id a nombre alternativo (sin precios)
+    PACKAGE_NAME_MAPPING = {
+        "1067": "5 Días -- 4GB",      # DATOS Y REDES -- $4.500,00 [7 DÍAS]
+        "1163": "7 Días -- 20GB",     # ILIMITADO -- $12.000,00 [7 DÍAS]
+        "1188": "15 Días -- 40GB",    # ILIMITADO -- $22.000,00 [15 DÍAS]
+        "1189": "30 Días -- 60GB",    # ILIMITADO -- $32.000,00 [30 DÍAS]
+    }
+
     try:
         data = resp.get("data", {}) if isinstance(resp, dict) else {}
         pkgs = data.get("packages", []) or []
         filtered = [p for p in pkgs if str(p.get("product_id")) in WINRED_ALLOWED_IDS]
+
+        # Transformar nombres de paquetes
+        for pkg in filtered:
+            product_id = str(pkg.get("product_id"))
+            if product_id in PACKAGE_NAME_MAPPING:
+                pkg["name"] = PACKAGE_NAME_MAPPING[product_id]
+
         if isinstance(resp, dict):
             resp.setdefault("data", {})["packages"] = filtered
             resp["data"]["count"] = len(filtered)

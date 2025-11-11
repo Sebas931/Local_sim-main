@@ -354,7 +354,7 @@ const ProductsManagement = () => {
                 <SelectContent>
                   {(winredPackages || []).map(p => (
                     <SelectItem key={String(p.product_id)} value={String(p.product_id)}>
-                      {`${p.name} — ${formatPrice(Number(p.price))}${p.validity ? ` [${p.validity}]` : ""}`}
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -420,7 +420,7 @@ const ProductsManagement = () => {
                 <SelectContent>
                   {(winredPackages || []).map(p => (
                     <SelectItem key={String(p.product_id)} value={String(p.product_id)}>
-                      {`${p.name} — ${formatPrice(Number(p.price))}${p.validity ? ` [${p.validity}]` : ""}`}
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
