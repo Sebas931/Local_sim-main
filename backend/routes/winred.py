@@ -522,7 +522,7 @@ async def topup_lote(body: BulkTopupByLoteRequest, db: AsyncSession = Depends(ge
 
 @router.get("/topup_lote_stream")
 async def topup_lote_stream(
-    lote_id: int = Query(...),
+    lote_id: str = Query(...),
     product_id: str = Query(...),
     amount: str = Query("0"),
     sell_from: str = Query("S")
