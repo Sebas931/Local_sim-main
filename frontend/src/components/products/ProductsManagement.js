@@ -128,84 +128,35 @@ const ProductsManagement = () => {
         setLoading(false);
 
       } else if (tipoRecarga === 'lote') {
-        // Recarga de lote con progreso en tiempo real
         setRecargaStatus('processing');
-        setRecargaProgress([]);
+        setRecargaProgress([{ type: 'info', message: `Procesando recarga del lote ${paramsRecarga.lote_id}...` }]);
 
-        const eventSource = new EventSource(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:8001'}/api/winred/topup_lote_stream?` +
-          new URLSearchParams({
-            lote_id: paramsRecarga.lote_id,
-            product_id: paramsRecarga.product_id,
-            amount: paramsRecarga.amount,
-            sell_from: paramsRecarga.sell_from
-          })
-        );
+        const result = await winredService.topupLote(paramsRecarga);
 
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          console.log('📡 Evento SSE:', data);
+        const exitosas = result.successful_count ?? 0;
+        const fallidas = result.failed_count ?? 0;
+        const total = result.processed ?? 0;
 
-          if (data.type === 'start') {
-            setRecargaProgress([{ type: 'info', message: `Iniciando recarga de ${data.total} SIMs del lote ${data.lote_id}...` }]);
-          } else if (data.type === 'processing') {
-            setRecargaProgress(prev => [...prev, { type: 'processing', message: `[${data.index}/${data.total}] Procesando ${data.msisdn}...` }]);
-          } else if (data.type === 'success') {
-            setRecargaProgress(prev => [...prev, { type: 'success', message: `[${data.index}/${data.total}] ✅ ${data.msisdn} recargado exitosamente` }]);
-          } else if (data.type === 'error') {
-            setRecargaProgress(prev => [...prev, { type: 'error', message: `[${data.index}/${data.total}] ❌ ${data.msisdn} falló: ${data.error}` }]);
-          } else if (data.type === 'retry') {
-            setRecargaProgress(prev => [...prev, { type: 'warning', message: `🔄 Reintentando ${data.msisdn} (intento ${data.attempt}/3)...` }]);
-          } else if (data.type === 'complete') {
-            setRecargaProgress(prev => [...prev, {
-              type: 'info',
-              message: `\n✅ Recarga completada: ${data.successful}/${data.processed} exitosas, ${data.failed} fallidas`
-            }]);
-            setRecargaStatus(data.failed === 0 ? 'completed' : 'completed_with_errors');
+        setRecargaProgress([
+          { type: 'info', message: `✅ Recarga completada: ${exitosas}/${total} exitosas, ${fallidas} fallidas` },
+          ...(result.failed || []).map(f => ({
+            type: 'error',
+            message: `❌ ${f.msisdn}: ${f.error || JSON.stringify(f.resp)}`
+          }))
+        ]);
+        setRecargaStatus(fallidas === 0 ? 'completed' : 'completed_with_errors');
+        setLoading(false);
 
-            if (data.failed > 0 && data.failed_details) {
-              data.failed_details.forEach(f => {
-                setRecargaProgress(prev => [...prev, {
-                  type: 'error',
-                  message: `   ❌ ${f.msisdn}: ${f.error}`
-                }]);
-              });
-            }
+        await Promise.all([fetchWinredBalance(), fetchLotes()]);
 
-            eventSource.close();
-            setLoading(false);
+        if (fallidas === 0) {
+          showNotification(`Recarga exitosa: ${exitosas}/${total} SIMs`, 'success');
+        } else {
+          showNotification(`Recarga completada con ${fallidas} errores. Ver detalles.`, 'error');
+        }
 
-            // Refresh balance AND lotes
-            setTimeout(async () => {
-              await Promise.all([
-                fetchWinredBalance(),
-                fetchLotes()
-              ]);
-            }, 1000);
-
-            // Mostrar notificación final
-            if (data.failed === 0) {
-              showNotification(`Recarga exitosa: ${data.successful}/${data.processed} SIMs`, 'success');
-            } else {
-              showNotification(`Recarga completada con ${data.failed} errores. Ver detalles.`, 'error');
-            }
-
-            // Clear form
-            setLoteParaRecargar('');
-            setSelectedPackageBulkId('');
-          }
-        };
-
-        eventSource.onerror = (error) => {
-          console.error('❌ Error SSE:', error);
-          setRecargaProgress(prev => [...prev, { type: 'error', message: '❌ Error en la conexión con el servidor' }]);
-          setRecargaStatus('error');
-          eventSource.close();
-          setLoading(false);
-          showNotification('Error en la recarga. Revisa los detalles.', 'error');
-        };
-
-        // No cerramos el modal aquí, el usuario lo cierra manualmente después de ver el resultado
+        setLoteParaRecargar('');
+        setSelectedPackageBulkId('');
       }
 
     } catch (error) {
@@ -370,9 +321,11 @@ const ProductsManagement = () => {
               className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium px-6 py-2 shadow-md hover:shadow-lg transition-all"
               onClick={() => {
                 setTipoRecarga('lote');
+                const pkg = (winredPackages || []).find(p => String(p.product_id) === String(selectedPackageBulkId));
                 setParamsRecarga({
                   lote_id: loteParaRecargar,
                   product_id: Number(selectedPackageBulkId),
+                  product_name: pkg?.name || selectedPackageBulkId,
                   amount: 0,
                   sell_from: "S",
                 });
@@ -434,8 +387,10 @@ const ProductsManagement = () => {
                 disabled={!msisdnToTopup || !selectedPackageSingleId}
                 onClick={() => {
                   setTipoRecarga('individual');
+                  const pkg = (winredPackages || []).find(p => String(p.product_id) === String(selectedPackageSingleId));
                   setParamsRecarga({
                     product_id: Number(selectedPackageSingleId),
+                    product_name: pkg?.name || selectedPackageSingleId,
                     amount: 0,
                     subscriber: msisdnToTopup,
                     sell_from: "S",
@@ -507,8 +462,8 @@ const ProductsManagement = () => {
                       <Badge variant="outline" className="text-base">{paramsRecarga.lote_id}</Badge>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">Paquete ID:</span>
-                      <Badge variant="outline" className="text-base">{paramsRecarga.product_id}</Badge>
+                      <span className="text-sm font-medium text-gray-600">Paquete:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.product_name}</Badge>
                     </div>
                   </div>
                 )}
@@ -520,8 +475,8 @@ const ProductsManagement = () => {
                       <Badge variant="outline" className="text-base">{paramsRecarga.subscriber}</Badge>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">Paquete ID:</span>
-                      <Badge variant="outline" className="text-base">{paramsRecarga.product_id}</Badge>
+                      <span className="text-sm font-medium text-gray-600">Paquete:</span>
+                      <Badge variant="outline" className="text-base">{paramsRecarga.product_name}</Badge>
                     </div>
                   </div>
                 )}
