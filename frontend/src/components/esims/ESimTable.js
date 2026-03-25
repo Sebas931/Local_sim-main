@@ -33,6 +33,7 @@ const ESimTable = ({ esims, onRefresh }) => {
   const formatFecha = (fecha) => {
     if (!fecha) return '-';
     return new Date(fecha).toLocaleDateString('es-CO', {
+      timeZone: 'America/Bogota',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'

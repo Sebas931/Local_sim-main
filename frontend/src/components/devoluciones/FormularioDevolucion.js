@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { devolucionesService } from '../../services/devolucionesService';
 import { useApp } from '../../context/AppContext';
+import { formatFechaHora } from '../../utils/dateUtils';
 
 const FormularioDevolucion = ({ onCancel, onSuccess }) => {
   const { showNotification } = useApp();
@@ -397,7 +398,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
                       <span className="font-medium">Método de pago:</span> {ventaSeleccionada.payment_method}
                     </div>
                     <div>
-                      <span className="font-medium">Fecha:</span> {new Date(ventaSeleccionada.created_at).toLocaleDateString()}
+                      <span className="font-medium">Fecha:</span> {formatFechaHora(ventaSeleccionada.created_at)}
                     </div>
                   </div>
                   <Button
@@ -441,7 +442,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
                             <span className="font-medium">Método:</span> {venta.payment_method}
                           </div>
                           <div>
-                            <span className="font-medium">Fecha:</span> {new Date(venta.created_at).toLocaleDateString()}
+                            <span className="font-medium">Fecha:</span> {formatFechaHora(venta.created_at)}
                           </div>
                         </div>
                       </div>

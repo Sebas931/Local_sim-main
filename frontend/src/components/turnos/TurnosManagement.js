@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Clock, DollarSign, FileText, AlertTriangle, Eye, EyeOff, Calendar, CreditCard, Package, Info } from 'lucide-react';
+import { Clock, DollarSign, FileText, AlertTriangle, Eye, EyeOff, Calendar, CreditCard, Package, Info, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Alert, AlertDescription } from '../ui/alert';
 import { turnosService } from '../../services/turnosService';
 import { useApp } from '../../context/AppContext';
+import { formatFechaHora } from '../../utils/dateUtils';
 import InventarioSimForm from './InventarioSimForm';
 
 const TurnosManagement = () => {
@@ -18,6 +19,7 @@ const TurnosManagement = () => {
   const [misTurnos, setMisTurnos] = useState([]);
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [movimientosTurno, setMovimientosTurno] = useState([]);
+  const [asesorTurno, setAsesorTurno] = useState(null);
   const [loadingTurnos, setLoadingTurnos] = useState(false);
 
   // Modal state
@@ -81,7 +83,8 @@ const TurnosManagement = () => {
         { plan: 'R5D', cantidad_reportada: 0, observaciones: '' },
         { plan: 'R7D', cantidad_reportada: 0, observaciones: '' },
         { plan: 'R15D', cantidad_reportada: 0, observaciones: '' },
-        { plan: 'R30D', cantidad_reportada: 0, observaciones: '' }
+        { plan: 'R30D', cantidad_reportada: 0, observaciones: '' },
+        { plan: 'Vírgenes', cantidad_reportada: 0, observaciones: '' }
       ];
 
       setInventariosApertura(inventariosIniciales);
@@ -132,6 +135,12 @@ const TurnosManagement = () => {
 
       setLoading(true);
 
+      // Resetear campos de cierre
+      setEfectivoReportado('');
+      setDatafonoReportado('');
+      setDolaresReportado('');
+      setObservacionesCierre('');
+
       // Load existing inventories from opening
       try {
         const inventarios = await turnosService.getInventariosTurno(turnoAbierto.id);
@@ -139,7 +148,7 @@ const TurnosManagement = () => {
 
         if (inventarios && inventarios.length > 0) {
           // Orden deseado de planes
-          const ordenPlanes = ['R5D', 'R7D', 'R15D', 'R30D'];
+          const ordenPlanes = ['R5D', 'R7D', 'R15D', 'R30D', 'Vírgenes'];
 
           // Ordenar inventarios según el orden especificado
           const inventariosOrdenados = [...inventarios].sort((a, b) => {
@@ -323,14 +332,22 @@ const TurnosManagement = () => {
     try {
       console.log('Fetching movimientos for turno:', turnoId);
       setMovimientosTurno([]); // Clear previous data
+      setAsesorTurno(null); // Clear previous asesor
       setTurnoSeleccionado(turnoId);
 
       const data = await turnosService.getMovimientosTurno(turnoId);
       console.log('Movimientos data received:', data);
 
-      setMovimientosTurno(Array.isArray(data) ? data : []);
+      // Handle response structure (can be {movimientos, asesor} or just array)
+      if (data && typeof data === 'object' && data.movimientos) {
+        setMovimientosTurno(Array.isArray(data.movimientos) ? data.movimientos : []);
+        setAsesorTurno(data.asesor || null);
+      } else {
+        setMovimientosTurno(Array.isArray(data) ? data : []);
+        setAsesorTurno(null);
+      }
 
-      if (!data || (Array.isArray(data) && data.length === 0)) {
+      if (!data || (Array.isArray(data) && data.length === 0) || (data.movimientos && data.movimientos.length === 0)) {
         showNotification('No hay movimientos para este turno', 'info');
       }
     } catch (error) {
@@ -338,6 +355,7 @@ const TurnosManagement = () => {
       const msg = error?.response?.data?.detail || 'Error al cargar movimientos del turno';
       showNotification(msg, 'error');
       setMovimientosTurno([]);
+      setAsesorTurno(null);
     }
   };
 
@@ -454,7 +472,7 @@ const TurnosManagement = () => {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="w-4 h-4" />
-                    <span>Abierto: {new Date(turnoAbierto.fecha_apertura).toLocaleString('es-CO')}</span>
+                    <span>Abierto: {formatFechaHora(turnoAbierto.fecha_apertura)}</span>
                   </div>
                 </div>
               ) : (
@@ -511,14 +529,14 @@ const TurnosManagement = () => {
                         }>
                           {turno.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
                         </Badge>
-                        <span className="font-bold text-gray-900 text-lg">Turno #{String(turno.id).slice(-8)}</span>
+                        <span className="font-bold text-gray-900 text-lg">Turno #{turno.numero_consecutivo || String(turno.id).slice(-8)}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
                         <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
                           <Calendar className="w-4 h-4 text-green-600" />
                           <div>
                             <span className="text-xs text-green-700 font-medium">Apertura</span>
-                            <p className="text-gray-900 font-medium">{new Date(turno.fecha_apertura).toLocaleString('es-CO')}</p>
+                            <p className="text-gray-900 font-medium">{formatFechaHora(turno.fecha_apertura)}</p>
                           </div>
                         </div>
                         {turno.fecha_cierre && (
@@ -526,7 +544,7 @@ const TurnosManagement = () => {
                             <Calendar className="w-4 h-4 text-red-600" />
                             <div>
                               <span className="text-xs text-red-700 font-medium">Cierre</span>
-                              <p className="text-gray-900 font-medium">{new Date(turno.fecha_cierre).toLocaleString('es-CO')}</p>
+                              <p className="text-gray-900 font-medium">{formatFechaHora(turno.fecha_cierre)}</p>
                             </div>
                           </div>
                         )}
@@ -563,12 +581,29 @@ const TurnosManagement = () => {
                       <Button
                         onClick={() => {
                           console.log('Clicking Ver Detalle for turno:', turno);
-                          fetchMovimientosTurno(turno.id);
+                          if (turnoSeleccionado === turno.id) {
+                            // Si ya está seleccionado, cerrar el detalle
+                            setTurnoSeleccionado(null);
+                            setMovimientosTurno([]);
+                            setAsesorTurno(null);
+                          } else {
+                            // Si no está seleccionado, abrir el detalle
+                            fetchMovimientosTurno(turno.id);
+                          }
                         }}
                         className="w-full bg-gradient-to-r from-localsim-teal-500 to-localsim-teal-600 hover:from-localsim-teal-600 hover:to-localsim-teal-700 text-white flex items-center justify-center gap-2"
                       >
-                        <Eye className="h-4 w-4" />
-                        {turnoSeleccionado === turno.id ? 'Cargando...' : 'Ver Detalle'}
+                        {turnoSeleccionado === turno.id ? (
+                          <>
+                            <EyeOff className="h-4 w-4" />
+                            Ocultar Detalle
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4" />
+                            Ver Detalle
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -580,7 +615,7 @@ const TurnosManagement = () => {
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-lg flex items-center gap-2">
                               <FileText className="h-5 w-5 text-localsim-teal-600" />
-                              Detalle del Turno #{String(turno.id).slice(-8)}
+                              Detalle del Turno #{turno.numero_consecutivo || String(turno.id).slice(-8)}
                             </CardTitle>
                             <Button
                               variant="ghost"
@@ -591,10 +626,17 @@ const TurnosManagement = () => {
                               <EyeOff className="h-4 w-4" />
                             </Button>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                            {asesorTurno && (
+                              <div className="flex items-center gap-1 bg-localsim-teal-50 px-3 py-1 rounded-lg">
+                                <User className="h-4 w-4 text-localsim-teal-600" />
+                                <span className="font-medium text-localsim-teal-700">{asesorTurno.nombre}</span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
                               {new Date(turno.fecha_apertura).toLocaleDateString('es-CO', {
+                                timeZone: 'America/Bogota',
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric'
@@ -603,9 +645,11 @@ const TurnosManagement = () => {
                             <div className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               {new Date(turno.fecha_apertura).toLocaleTimeString('es-CO', {
+                                timeZone: 'America/Bogota',
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })} - {turno.fecha_cierre ? new Date(turno.fecha_cierre).toLocaleTimeString('es-CO', {
+                                timeZone: 'America/Bogota',
                                 hour: '2-digit',
                                 minute: '2-digit'
                               }) : 'En curso'}
@@ -701,15 +745,22 @@ const TurnosManagement = () => {
                                             )}
                                           </div>
 
-                                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                                            {mov.producto && (
-                                              <div>
-                                                <span className="font-medium">Producto:</span> {mov.producto}
+                                          <div className="space-y-1 text-xs text-gray-600">
+                                            {mov.productos && mov.productos.length > 0 && (
+                                              <div className="mt-2 space-y-1">
+                                                <span className="font-medium text-gray-700">Productos:</span>
+                                                {mov.productos.map((producto, idx) => (
+                                                  <div key={idx} className="ml-2 flex items-center gap-2 bg-gray-50 px-2 py-1 rounded">
+                                                    <Package className="h-3 w-3 text-gray-500" />
+                                                    <span>{producto.quantity}x {producto.description} ({producto.product_code})</span>
+                                                    <span className="ml-auto font-medium">{formatPrice(producto.unit_price)}</span>
+                                                  </div>
+                                                ))}
                                               </div>
                                             )}
                                             {mov.sale_id && (
-                                              <div>
-                                                <span className="font-medium">ID Venta:</span> {mov.sale_id}
+                                              <div className="mt-1">
+                                                <span className="font-medium">ID Venta:</span> {String(mov.sale_id).slice(-8)}
                                               </div>
                                             )}
                                           </div>
@@ -729,12 +780,14 @@ const TurnosManagement = () => {
                                           )}
                                           <div className="text-xs text-gray-500">
                                             {mov.fecha ? new Date(mov.fecha).toLocaleString('es-CO', {
+                                              timeZone: 'America/Bogota',
                                               month: 'short',
                                               day: '2-digit',
                                               hour: '2-digit',
                                               minute: '2-digit'
                                             }) :
                                             mov.created_at ? new Date(mov.created_at).toLocaleString('es-CO', {
+                                              timeZone: 'America/Bogota',
                                               month: 'short',
                                               day: '2-digit',
                                               hour: '2-digit',
@@ -781,6 +834,9 @@ const TurnosManagement = () => {
               <AlertTriangle className="h-5 w-5 text-orange-600" />
               Cerrar Turno
             </DialogTitle>
+            <DialogDescription>
+              Completa la información para cerrar el turno actual
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -841,12 +897,14 @@ const TurnosManagement = () => {
                     onChange={(e) => setDatafonoReportado(e.target.value)}
                     placeholder="0.00"
                     className="mt-1"
+                    disabled={loading}
+                    autoComplete="off"
                   />
                 </div>
 
                 {/* Efectivo Contado */}
                 <div>
-                  <Label htmlFor="efectivo-reportado">Ventas en Efectivo*</Label>
+                  <Label htmlFor="efectivo-reportado">Ventas en Efectivo *</Label>
                   <Input
                     id="efectivo-reportado"
                     type="number"
@@ -856,6 +914,8 @@ const TurnosManagement = () => {
                     onChange={(e) => setEfectivoReportado(e.target.value)}
                     placeholder="0.00"
                     className="mt-1"
+                    disabled={loading}
+                    autoComplete="off"
                   />
                 </div>
 
@@ -871,6 +931,8 @@ const TurnosManagement = () => {
                     onChange={(e) => setDolaresReportado(e.target.value)}
                     placeholder="0.00"
                     className="mt-1"
+                    disabled={loading}
+                    autoComplete="off"
                   />
                 </div>
 
@@ -920,6 +982,9 @@ const TurnosManagement = () => {
               <Clock className="h-5 w-5 text-green-600" />
               Abrir Nuevo Turno
             </DialogTitle>
+            <DialogDescription>
+              Registra el inventario inicial de SIMs para comenzar tu turno
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

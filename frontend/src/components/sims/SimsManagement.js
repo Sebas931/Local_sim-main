@@ -21,6 +21,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { simsService } from '../../services/simsService';
 import { useApp } from '../../context/AppContext';
+import { formatFechaHora } from '../../utils/dateUtils';
 
 const SimsManagement = () => {
   const { showNotification, loading, setLoading } = useApp();
@@ -593,16 +594,10 @@ const SimsManagement = () => {
                                                 </span>
                                               </td>
                                               <td className="px-3 py-2 text-xs text-gray-600">
-                                                {sim.fecha_registro ? new Date(sim.fecha_registro).toLocaleString("es-CO", {
-                                                  day: '2-digit', month: '2-digit', year: 'numeric',
-                                                  hour: '2-digit', minute: '2-digit',
-                                                }) : '—'}
+                                                {formatFechaHora(sim.fecha_registro)}
                                               </td>
                                               <td className="px-3 py-2 text-xs text-gray-600">
-                                                {sim.fecha_venta ? new Date(sim.fecha_venta).toLocaleString("es-CO", {
-                                                  day: '2-digit', month: '2-digit', year: 'numeric',
-                                                  hour: '2-digit', minute: '2-digit',
-                                                }) : '—'}
+                                                {formatFechaHora(sim.fecha_venta)}
                                               </td>
                                               <td className="px-3 py-2 text-center">
                                                 {editando ? (

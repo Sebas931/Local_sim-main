@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { turnosService } from '../../services/turnosService';
 import { usersService } from '../../services/usersService';
 import { useApp } from '../../context/AppContext';
+import { formatFechaHora } from '../../utils/dateUtils';
 import InventarioSimForm from './InventarioSimForm';
 
 const InventarioDescuadresView = () => {
@@ -144,7 +145,7 @@ const InventarioDescuadresView = () => {
       ...inventarios.map(inv => [
         inv.turno_id,
         inv.usuario || '',
-        new Date(inv.fecha_registro).toLocaleDateString(),
+        formatFechaHora(inv.fecha_registro),
         inv.plan,
         inv.cantidad_inicial_reportada || 0,
         inv.cantidad_inicial_sistema || 0,
@@ -439,6 +440,7 @@ const InventarioDescuadresView = () => {
                             <div className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-lg border border-gray-200">
                               <Calendar className="h-4 w-4 text-gray-500" />
                               <span className="text-gray-700">{new Date(turno.fecha_registro).toLocaleString('es-CO', {
+                                timeZone: 'America/Bogota',
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric',
@@ -620,7 +622,7 @@ const InventarioDescuadresView = () => {
                     <span className="font-medium">Usuario:</span> {selectedInventario.usuario}
                   </div>
                   <div>
-                    <span className="font-medium">Fecha:</span> {new Date(selectedInventario.fecha_registro).toLocaleString()}
+                    <span className="font-medium">Fecha:</span> {formatFechaHora(selectedInventario.fecha_registro)}
                   </div>
                   <div>
                     <span className="font-medium">Plan:</span> {selectedInventario.plan}

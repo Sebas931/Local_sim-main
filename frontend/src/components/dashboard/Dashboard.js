@@ -16,6 +16,7 @@ import {
 import { dashboardService } from '../../services/dashboardService';
 import { usersService } from '../../services/usersService';
 import { useApp } from '../../context/AppContext';
+import { formatFecha, formatFechaHora } from '../../utils/dateUtils';
 
 const Dashboard = () => {
   const { showNotification } = useApp();
@@ -199,13 +200,8 @@ const Dashboard = () => {
     }).format(price || 0);
   };
 
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('es-CO');
-  };
-
-  const formatDateTime = (date) => {
-    return new Date(date).toLocaleString('es-CO');
-  };
+  const formatDate = formatFecha;
+  const formatDateTime = formatFechaHora;
 
   const getAlertColor = (count) => {
     if (count === 0) return 'text-green-600';
@@ -360,7 +356,7 @@ const Dashboard = () => {
 
         // Preparar listado detallado de devoluciones
         const detalleData = (devolucionesData.devoluciones || []).map(dev => ({
-          'Fecha': dev.fecha_devolucion ? new Date(dev.fecha_devolucion).toLocaleString('es-CO') : '',
+          'Fecha': dev.fecha_devolucion ? formatFechaHora(dev.fecha_devolucion) : '',
           'Tipo': dev.tipo_devolucion,
           'SIM Defectuosa ICCID': dev.sim_defectuosa_iccid || '',
           'SIM Defectuosa Número': dev.sim_defectuosa_numero || '',
@@ -429,10 +425,10 @@ const Dashboard = () => {
           'Plan': simData.sim.plan_asignado || '',
           'Estado': simData.sim.estado,
           'Lote ID': simData.sim.lote_id || '',
-          'Fecha Registro': simData.sim.fecha_registro ? new Date(simData.sim.fecha_registro).toLocaleString('es-CO') : '',
+          'Fecha Registro': simData.sim.fecha_registro ? formatFechaHora(simData.sim.fecha_registro) : '',
           'Vendida': simData.resumen.esta_vendida ? 'Sí' : 'No',
           'Asesor Vendió': simData.venta?.usuario || '',
-          'Fecha Venta': simData.venta?.fecha ? new Date(simData.venta.fecha).toLocaleString('es-CO') : '',
+          'Fecha Venta': simData.venta?.fecha ? formatFechaHora(simData.venta.fecha) : '',
           'Tiene Devoluciones': simData.resumen.tiene_devoluciones ? 'Sí' : 'No',
           'Total Eventos': simData.resumen.total_eventos
         }));
@@ -446,7 +442,7 @@ const Dashboard = () => {
               'Número Línea': simData.sim.numero_linea || '',
               'Tipo Evento': evento.tipo,
               'Descripción': evento.descripcion,
-              'Fecha': evento.fecha ? new Date(evento.fecha).toLocaleString('es-CO') : '',
+              'Fecha': evento.fecha ? formatFechaHora(evento.fecha) : '',
               'Usuario': evento.usuario || '',
               'Motivo': evento.motivo || ''
             });
@@ -460,7 +456,7 @@ const Dashboard = () => {
             'ICCID': simData.sim.iccid,
             'Número Línea': simData.sim.numero_linea || '',
             'ID Venta': simData.venta.id,
-            'Fecha Venta': simData.venta.fecha ? new Date(simData.venta.fecha).toLocaleString('es-CO') : '',
+            'Fecha Venta': simData.venta.fecha ? formatFechaHora(simData.venta.fecha) : '',
             'Total': simData.venta.total,
             'Método Pago': simData.venta.metodo_pago
           }));
@@ -474,7 +470,7 @@ const Dashboard = () => {
                 'ICCID': simData.sim.iccid,
                 'Número Línea': simData.sim.numero_linea || '',
                 'Tipo Devolución': dev.tipo,
-                'Fecha': dev.fecha ? new Date(dev.fecha).toLocaleString('es-CO') : '',
+                'Fecha': dev.fecha ? formatFechaHora(dev.fecha) : '',
                 'Motivo': dev.motivo || '',
                 'Usuario': dev.usuario || '',
                 'SIM Reemplazo ICCID': dev.sim_reemplazo_iccid || '',

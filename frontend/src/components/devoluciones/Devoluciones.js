@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { devolucionesService } from '../../services/devolucionesService';
 import FormularioDevolucion from './FormularioDevolucion';
+import { formatFechaHora } from '../../utils/dateUtils';
 
 const Devoluciones = () => {
   const [activeTab, setActiveTab] = useState('lista');
@@ -58,13 +59,7 @@ const Devoluciones = () => {
   );
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('es-CO', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatFechaHora(dateString);
   };
 
   // Calcular estadísticas
