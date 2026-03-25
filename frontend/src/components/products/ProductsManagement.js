@@ -463,7 +463,9 @@ const ProductsManagement = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-600">Paquete:</span>
-                      <Badge variant="outline" className="text-base">{paramsRecarga.product_name}</Badge>
+                      <Badge variant="outline" className="text-base">
+                        {(winredPackages || []).find(p => String(p.product_id) === String(paramsRecarga.product_id))?.name || paramsRecarga.product_name}
+                      </Badge>
                     </div>
                   </div>
                 )}
@@ -476,7 +478,9 @@ const ProductsManagement = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-600">Paquete:</span>
-                      <Badge variant="outline" className="text-base">{paramsRecarga.product_name}</Badge>
+                      <Badge variant="outline" className="text-base">
+                        {(winredPackages || []).find(p => String(p.product_id) === String(paramsRecarga.product_id))?.name || paramsRecarga.product_name}
+                      </Badge>
                     </div>
                   </div>
                 )}
