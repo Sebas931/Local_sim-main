@@ -81,7 +81,7 @@ class DevolucionResponseSchema(BaseModel):
     # SIM defectuosa
     sim_defectuosa_id: str
     sim_defectuosa_iccid: str
-    sim_defectuosa_numero: str
+    sim_defectuosa_numero: Optional[str]
 
     # SIM de reemplazo (solo para intercambios)
     sim_reemplazo_id: Optional[str]
@@ -117,7 +117,7 @@ class DevolucionListSchema(BaseModel):
 
     # SIM defectuosa
     sim_defectuosa_iccid: str
-    sim_defectuosa_numero: str
+    sim_defectuosa_numero: Optional[str]
 
     # SIM de reemplazo (solo para intercambios)
     sim_reemplazo_iccid: Optional[str]
