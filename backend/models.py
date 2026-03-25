@@ -13,7 +13,8 @@ class SimStatus(str, enum.Enum):
     available = "available"
     recargado = "recargado"
     vendido = "vendido"
-    defectuosa = "defectuosa"  # Para SIMs devueltas por fallas
+    defectuosa = "defectuosa"  # Para SIMs devueltas por fallas (intercambio)
+    devuelta = "devuelta"  # Para SIMs devueltas con devolución de dinero (no disponibles para venta)
 
 class TipoDevolucion(str, enum.Enum):
     intercambio = "intercambio"  # Cambio de SIM defectuosa por una nueva
@@ -33,6 +34,7 @@ class Sale(Base):
     __tablename__ = 'sales'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    numero_consecutivo = Column(String(50), nullable=False, unique=True, index=True)
     customer_id = Column(String)
     customer_identification = Column(String)
     payment_method = Column(String)
@@ -40,6 +42,9 @@ class Sale(Base):
     total = Column(Numeric)
     created_at = Column(DateTime, server_default=func.now())
     estado = Column(String(20), default='activa', nullable=False)
+    es_contingencia = Column(Boolean, default=False, nullable=False)
+    siigo_pendiente = Column(Boolean, default=False, nullable=False)
+    observaciones = Column(Text, nullable=True)
 
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User")
@@ -133,8 +138,9 @@ class SimDetalle(Base):
 
 class Turno(Base):
     __tablename__ = "turnos"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    numero_consecutivo = Column(Integer, nullable=False, unique=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     fecha_apertura = Column(DateTime(timezone=True), server_default=func.now())
     fecha_cierre = Column(DateTime(timezone=True))
@@ -169,7 +175,7 @@ class MovimientoCaja(Base):
     __tablename__ = "movimientos_caja"
     
     id = Column(UUID(as_uuid=True), primary_key=True, index=True)
-    turno_id = Column(UUID(as_uuid=True), ForeignKey("turnos.id"), nullable=False)
+    turno_id = Column(UUID(as_uuid=True), ForeignKey("turnos.id"), nullable=True)
     tipo = Column(String(20), nullable=False)
     monto = Column(Numeric(12, 2), nullable=False)
     descripcion = Column(Text)
