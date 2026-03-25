@@ -515,7 +515,7 @@ const SimsManagement = () => {
                             </td>
                             <td className="border border-gray-200 px-4 py-2 text-center font-semibold">{lote.total_sims}</td>
                             <td className="border border-gray-200 px-4 py-2 text-center">
-                              <span className="font-bold text-green-600">{lote.sims_disponibles}</span>
+                              <span className="font-bold text-green-600">{lote.sims_disponibles + lote.sims_recargadas}</span>
                             </td>
                             <td className="border border-gray-200 px-4 py-2 text-center">
                               <span className="font-bold text-blue-600">{lote.sims_recargadas}</span>
