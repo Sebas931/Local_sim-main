@@ -71,12 +71,11 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
       setVentasEncontradas(data || []);
     } catch (error) {
       console.error('Error al buscar ventas:', error);
-      showNotification('Error al buscar ventas', 'error');
       setVentasEncontradas([]);
     } finally {
       setLoadingVentas(false);
     }
-  }, [showNotification]);
+  }, []);
 
   // Cargar SIMs vendidas
   const cargarSimsVendidas = useCallback(async (search = '') => {

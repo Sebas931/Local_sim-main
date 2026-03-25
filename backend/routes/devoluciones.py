@@ -32,7 +32,7 @@ async def buscar_ventas_por_iccid(
         sim = result.scalar_one_or_none()
 
         if not sim:
-            raise HTTPException(status_code=404, detail="SIM no encontrada")
+            return []
 
         ventas_encontradas = []
 
@@ -350,8 +350,8 @@ async def _procesar_devolucion_dinero(devolucion_data, sale, sim_defectuosa, tur
     # Anular la venta original
     sale.estado = 'anulada'
 
-    # Marcar la SIM como disponible nuevamente
-    sim_defectuosa.estado = SimStatus.available
+    # Marcar la SIM como devuelta (NO disponible para venta nuevamente)
+    sim_defectuosa.estado = SimStatus.devuelta
     sim_defectuosa.vendida = False
     sim_defectuosa.fecha_venta = None
     sim_defectuosa.venta_id = None
