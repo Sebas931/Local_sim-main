@@ -17,7 +17,7 @@ export const usersService = {
   },
 
   changePassword: async (userId, newPassword) => {
-    const response = await api.put(`/api/users/${userId}/password`, {
+    const response = await api.post(`/api/users/${userId}/reset_password`, {
       new_password: newPassword
     });
     return response.data;
