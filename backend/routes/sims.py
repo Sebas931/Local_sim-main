@@ -536,8 +536,8 @@ async def listar_lotes(db: AsyncSession = Depends(get_async_session)):
                 SimLote.estado,
                 SimLote.fecha_registro,
                 func.count(SimDetalle.id).label("total_sims"),
-                func.sum(case((SimDetalle.estado == 'available', 1), else_=0)).label("sims_disponibles"),
-                func.sum(case((SimDetalle.estado == 'recargado', 1), else_=0)).label("sims_recargadas"),
+                func.sum(case((SimDetalle.estado.in_(['available', 'recargado']), 1), else_=0)).label("sims_disponibles"),
+                func.sum(case((SimDetalle.estado.in_(['recargado', 'vendido']), 1), else_=0)).label("sims_recargadas"),
                 func.sum(case((SimDetalle.estado == 'vendido', 1), else_=0)).label("sims_vendidas"),
             )
             .join(SimDetalle, SimDetalle.lote_id == SimLote.id)
