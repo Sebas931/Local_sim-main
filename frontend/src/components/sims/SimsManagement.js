@@ -10,7 +10,10 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
-  Smartphone
+  Smartphone,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -33,6 +36,9 @@ const SimsManagement = () => {
 
   // Filtro de búsqueda
   const [filtroNumero, setFiltroNumero] = useState('');
+
+  // Estado de edición inline
+  const [editandoSim, setEditandoSim] = useState(null); // { simId, loteId, numeroLinea, iccid }
 
   // Form state for creating individual SIM
   const [simForm, setSimForm] = useState({
@@ -165,6 +171,27 @@ const SimsManagement = () => {
       setUploadFile(null);
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Error al cargar archivo';
+      showNotification(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!editandoSim) return;
+    try {
+      setLoading(true);
+      await simsService.updateSim(editandoSim.simId, {
+        numero_linea: editandoSim.numeroLinea,
+        iccid: editandoSim.iccid,
+      });
+      showNotification('SIM actualizada correctamente', 'success');
+      // Refrescar SIMs del lote
+      setSimsPorLote(prev => ({ ...prev, [editandoSim.loteId]: undefined }));
+      await fetchSimsPorLote(editandoSim.loteId);
+      setEditandoSim(null);
+    } catch (error) {
+      const msg = error?.response?.data?.detail || 'Error al actualizar SIM';
       showNotification(msg, 'error');
     } finally {
       setLoading(false);
@@ -498,7 +525,7 @@ const SimsManagement = () => {
                           </tr>
                           {expandido && simsPorLote[lote.lote_id] && (
                             <tr>
-                              <td colSpan="8" className="border border-gray-200 p-0">
+                              <td colSpan="9" className="border border-gray-200 p-0">
                                 <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4">
                                   <div className="overflow-x-auto">
                                     <table className="w-full">
@@ -519,6 +546,7 @@ const SimsManagement = () => {
                                             <Clock className="h-3 w-3 inline mr-1" />
                                             Venta
                                           </th>
+                                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Editar</th>
                                         </tr>
                                       </thead>
                                       <tbody>
@@ -528,10 +556,28 @@ const SimsManagement = () => {
                                             return sim.numero_linea?.toLowerCase().includes(filtroNumero.toLowerCase()) ||
                                                    sim.iccid?.toLowerCase().includes(filtroNumero.toLowerCase());
                                           })
-                                          .map((sim) => (
-                                            <tr key={sim.id} className="hover:bg-white/80 transition-colors">
-                                              <td className="px-3 py-2 text-xs font-medium">{sim.numero_linea}</td>
-                                              <td className="px-3 py-2 text-xs font-mono text-gray-600">{sim.iccid}</td>
+                                          .map((sim) => {
+                                            const editando = editandoSim?.simId === sim.id;
+                                            return (
+                                            <tr key={sim.id} className={`hover:bg-white/80 transition-colors ${editando ? 'bg-yellow-50' : ''}`}>
+                                              <td className="px-3 py-2 text-xs font-medium">
+                                                {editando ? (
+                                                  <input
+                                                    className="border rounded px-1 py-0.5 text-xs w-28"
+                                                    value={editandoSim.numeroLinea}
+                                                    onChange={e => setEditandoSim(prev => ({ ...prev, numeroLinea: e.target.value }))}
+                                                  />
+                                                ) : sim.numero_linea}
+                                              </td>
+                                              <td className="px-3 py-2 text-xs font-mono text-gray-600">
+                                                {editando ? (
+                                                  <input
+                                                    className="border rounded px-1 py-0.5 text-xs w-40 font-mono"
+                                                    value={editandoSim.iccid}
+                                                    onChange={e => setEditandoSim(prev => ({ ...prev, iccid: e.target.value }))}
+                                                  />
+                                                ) : sim.iccid}
+                                              </td>
                                               <td className="px-3 py-2 text-xs">
                                                 {sim.plan_asignado ? (
                                                   <span className="px-2 py-0.5 bg-localsim-teal-100 text-localsim-teal-700 rounded text-xs">
@@ -548,24 +594,41 @@ const SimsManagement = () => {
                                               </td>
                                               <td className="px-3 py-2 text-xs text-gray-600">
                                                 {sim.fecha_registro ? new Date(sim.fecha_registro).toLocaleString("es-CO", {
-                                                  day: '2-digit',
-                                                  month: '2-digit',
-                                                  year: 'numeric',
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
+                                                  day: '2-digit', month: '2-digit', year: 'numeric',
+                                                  hour: '2-digit', minute: '2-digit',
                                                 }) : '—'}
                                               </td>
                                               <td className="px-3 py-2 text-xs text-gray-600">
                                                 {sim.fecha_venta ? new Date(sim.fecha_venta).toLocaleString("es-CO", {
-                                                  day: '2-digit',
-                                                  month: '2-digit',
-                                                  year: 'numeric',
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
+                                                  day: '2-digit', month: '2-digit', year: 'numeric',
+                                                  hour: '2-digit', minute: '2-digit',
                                                 }) : '—'}
                                               </td>
+                                              <td className="px-3 py-2 text-center">
+                                                {editando ? (
+                                                  <div className="flex gap-1 justify-center">
+                                                    <button onClick={handleGuardarEdicion} disabled={loading} className="text-green-600 hover:text-green-800" title="Guardar">
+                                                      <Check className="h-4 w-4" />
+                                                    </button>
+                                                    <button onClick={() => setEditandoSim(null)} className="text-red-500 hover:text-red-700" title="Cancelar">
+                                                      <X className="h-4 w-4" />
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  sim.estado !== 'vendido' && sim.estado !== 'sold' && (
+                                                    <button
+                                                      onClick={() => setEditandoSim({ simId: sim.id, loteId: lote.lote_id, numeroLinea: sim.numero_linea || '', iccid: sim.iccid || '' })}
+                                                      className="text-gray-400 hover:text-localsim-teal-600 transition-colors"
+                                                      title="Editar"
+                                                    >
+                                                      <Pencil className="h-3.5 w-3.5" />
+                                                    </button>
+                                                  )
+                                                )}
+                                              </td>
                                             </tr>
-                                          ))}
+                                            );
+                                          })}
                                       </tbody>
                                     </table>
                                   </div>

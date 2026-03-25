@@ -1,5 +1,6 @@
 # routes/sims.py
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func, case, update, or_, select, text
@@ -26,10 +27,12 @@ def _st(name: str):
     return getattr(SimStatus, name, name)
 
 # OJO: estos nombres deben coincidir con los *valores reales* del Enum en tu BD.
-# Por lo que reportaste, tu enum contiene: 'available', 'recargado', 'vendido'.
-ST_AVAILABLE = _st("available")
-ST_RECHARGED = _st("recargado")
-ST_SOLD      = _st("vendido")
+# Por lo que reportaste, tu enum contiene: 'available', 'recargado', 'vendido', 'defectuosa', 'devuelta'.
+ST_AVAILABLE   = _st("available")
+ST_RECHARGED   = _st("recargado")
+ST_SOLD        = _st("vendido")
+ST_DEFECTUOSA  = _st("defectuosa")
+ST_DEVUELTA    = _st("devuelta")
 
 # Alias de filtros que puedan llegarte desde UI
 STATUS_ALIASES = {
@@ -38,6 +41,8 @@ STATUS_ALIASES = {
     "available": "available",
     "vendido": "vendido",
     "recargado": "recargado",
+    "defectuosa": "defectuosa",
+    "devuelta": "devuelta",
 }
 
 # ============================================================
@@ -394,6 +399,38 @@ async def crear_sim_completa(
 # Eliminar SIM individual
 # ============================================================
 
+class UpdateSimBody(BaseModel):
+    numero_linea: Optional[str] = None
+    iccid: Optional[str] = None
+
+@router.put("/sim/{sim_id}")
+async def actualizar_sim(
+    sim_id: str,
+    body: UpdateSimBody,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """Edita numero_linea y/o iccid de una SIM. No permite editar SIMs vendidas."""
+    sim = (await db.execute(select(SimDetalle).where(SimDetalle.id == sim_id))).scalars().first()
+    if not sim:
+        raise HTTPException(status_code=404, detail="SIM no encontrada")
+    if sim.vendida or sim.estado == "vendido":
+        raise HTTPException(status_code=400, detail="No se puede editar una SIM vendida")
+
+    if body.iccid and body.iccid != sim.iccid:
+        duplicado = (await db.execute(
+            select(SimDetalle).where(SimDetalle.iccid == body.iccid)
+        )).scalars().first()
+        if duplicado:
+            raise HTTPException(status_code=400, detail=f"El ICCID {body.iccid} ya existe en otra SIM")
+        sim.iccid = body.iccid
+
+    if body.numero_linea and body.numero_linea != sim.numero_linea:
+        sim.numero_linea = body.numero_linea
+
+    await db.commit()
+    return {"message": "SIM actualizada correctamente", "sim_id": sim_id}
+
+
 @router.delete("/sim/{sim_id}")
 async def eliminar_sim(
     sim_id: str,
@@ -730,6 +767,14 @@ async def dashboard_stats(db: AsyncSession = Depends(get_async_session)):
     sims_sold = (await db.execute(
         select(func.count()).select_from(SimDetalle).where(SimDetalle.estado == ST_SOLD)
     )).scalar() or 0
+    # Defectuosas: SIMs devueltas por fallas (intercambio)
+    sims_defectuosas = (await db.execute(
+        select(func.count()).select_from(SimDetalle).where(SimDetalle.estado == ST_DEFECTUOSA)
+    )).scalar() or 0
+    # Devueltas: SIMs devueltas con devolución de dinero (no disponibles para venta)
+    sims_devueltas = (await db.execute(
+        select(func.count()).select_from(SimDetalle).where(SimDetalle.estado == ST_DEVUELTA)
+    )).scalar() or 0
 
     # Operadores con poco stock disponible (umbral configurable)
     THRESHOLD = 5
@@ -768,7 +813,9 @@ async def dashboard_stats(db: AsyncSession = Depends(get_async_session)):
         "sims": {
             "total": int(total_sims),
             "available": int(sims_available),
-            "sold": int(sims_sold)
+            "sold": int(sims_sold),
+            "defectuosas": int(sims_defectuosas),
+            "devueltas": int(sims_devueltas)
         },
         "alerts": {
             "low_stock_by_plan": low_stock_plans

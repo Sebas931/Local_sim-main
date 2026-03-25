@@ -107,6 +107,12 @@ export const simsService = {
     return response.data;
   },
 
+  // Editar ICCID y/o número de línea de una SIM
+  updateSim: async (simId, { numero_linea, iccid }) => {
+    const response = await api.put(`/api/sims/sim/${simId}`, { numero_linea, iccid });
+    return response.data;
+  },
+
   // Eliminar SIM individual
   deleteSim: async (simId, force = false) => {
     const response = await api.delete(`/api/sims/sim/${simId}`, {
