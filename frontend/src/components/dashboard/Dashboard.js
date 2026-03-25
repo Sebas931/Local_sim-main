@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, DollarSign, Activity, AlertTriangle, Package,
   TrendingUp, Users, Clock, RotateCcw, ArrowUpDown,
-  TrendingDown, Eye, RefreshCw, Search, GitBranch
+  TrendingDown, Eye, RefreshCw, Search, GitBranch, FileDown
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -275,6 +275,258 @@ const Dashboard = () => {
     }
   };
 
+  // Función para exportar ventas a Excel
+  const exportarVentasExcel = () => {
+    if (!ventasData || !ventasData.ventas_por_dia) {
+      showNotification('No hay datos de ventas para exportar', 'error');
+      return;
+    }
+
+    try {
+      // Importar la librería dinámicamente
+      import('xlsx').then((XLSX) => {
+        // Preparar datos para la hoja de resumen
+        const resumenData = (ventasData.resumen_por_metodo || []).map(metodo => ({
+          'Método de Pago': metodo.metodo,
+          'Total Ingresos': metodo.total_ingresos,
+          'Cantidad Ventas': metodo.cantidad_ventas,
+          'Ticket Promedio': metodo.ticket_promedio
+        }));
+
+        // Preparar datos para la hoja de ventas por día
+        const ventasPorDiaData = (ventasData.ventas_por_dia || []).map(dia => ({
+          'Fecha': dia.fecha,
+          'Total Ventas': dia.total_ventas,
+          'Total Ingresos': dia.total_ingresos
+        }));
+
+        // Crear libro de trabajo
+        const wb = XLSX.utils.book_new();
+
+        // Agregar hoja de resumen
+        const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen por Método');
+
+        // Agregar hoja de ventas por día
+        const wsVentasDia = XLSX.utils.json_to_sheet(ventasPorDiaData);
+        XLSX.utils.book_append_sheet(wb, wsVentasDia, 'Ventas por Día');
+
+        // Crear nombre de archivo con fechas y usuario
+        const nombreUsuario = usuarios.find(u => u.id === parseInt(usuarioSeleccionado))?.full_name || 'Todos';
+        const nombreArchivo = `Ventas_${fechaDesde}_${fechaHasta}_${nombreUsuario.replace(/\s+/g, '_')}.xlsx`;
+
+        // Descargar archivo
+        XLSX.writeFile(wb, nombreArchivo);
+        showNotification('Archivo Excel exportado exitosamente', 'success');
+      }).catch(error => {
+        console.error('Error al cargar librería XLSX:', error);
+        showNotification('Error al exportar. Instalando librería...', 'error');
+      });
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      showNotification('Error al exportar datos a Excel', 'error');
+    }
+  };
+
+  // Función para exportar devoluciones a Excel
+  const exportarDevolucionesExcel = () => {
+    if (!devolucionesData) {
+      showNotification('No hay datos de devoluciones para exportar', 'error');
+      return;
+    }
+
+    try {
+      import('xlsx').then((XLSX) => {
+        // Preparar datos de resumen
+        const resumenData = [
+          { 'Concepto': 'Total Intercambios', 'Valor': devolucionesData.resumen?.intercambios || 0 },
+          { 'Concepto': 'Total Devoluciones Dinero', 'Valor': devolucionesData.resumen?.devoluciones_dinero || 0 },
+          { 'Concepto': 'Monto Total Devuelto', 'Valor': devolucionesData.resumen?.monto_total_devuelto || 0 }
+        ];
+
+        // Preparar datos de motivos comunes
+        const motivosData = (devolucionesData.motivos_comunes || []).map(motivo => ({
+          'Motivo': motivo.motivo,
+          'Tipo': motivo.tipo,
+          'Frecuencia': motivo.frecuencia
+        }));
+
+        // Preparar datos de devoluciones por día
+        const porDiaData = (devolucionesData.devoluciones_por_dia || []).map(dia => ({
+          'Fecha': dia.fecha,
+          'Intercambios': dia.intercambios,
+          'Devoluciones Dinero': dia.devoluciones_dinero
+        }));
+
+        // Preparar listado detallado de devoluciones
+        const detalleData = (devolucionesData.devoluciones || []).map(dev => ({
+          'Fecha': dev.fecha_devolucion ? new Date(dev.fecha_devolucion).toLocaleString('es-CO') : '',
+          'Tipo': dev.tipo_devolucion,
+          'SIM Defectuosa ICCID': dev.sim_defectuosa_iccid || '',
+          'SIM Defectuosa Número': dev.sim_defectuosa_numero || '',
+          'SIM Reemplazo ICCID': dev.sim_reemplazo_iccid || '',
+          'SIM Reemplazo Número': dev.sim_reemplazo_numero || '',
+          'Motivo': dev.motivo || '',
+          'Monto Devuelto': dev.monto_devuelto || 0,
+          'Método Devolución': dev.metodo_devolucion || '',
+          'Cliente': dev.cliente_nombre || '',
+          'Usuario': dev.user_name || ''
+        }));
+
+        // Crear libro de trabajo
+        const wb = XLSX.utils.book_new();
+
+        // Agregar hojas
+        const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+        if (motivosData.length > 0) {
+          const wsMotivos = XLSX.utils.json_to_sheet(motivosData);
+          XLSX.utils.book_append_sheet(wb, wsMotivos, 'Motivos Comunes');
+        }
+
+        if (porDiaData.length > 0) {
+          const wsPorDia = XLSX.utils.json_to_sheet(porDiaData);
+          XLSX.utils.book_append_sheet(wb, wsPorDia, 'Por Día');
+        }
+
+        if (detalleData.length > 0) {
+          const wsDetalle = XLSX.utils.json_to_sheet(detalleData);
+          XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle Devoluciones');
+        }
+
+        // Crear nombre de archivo
+        const nombreUsuario = usuarios.find(u => u.id === parseInt(usuarioSeleccionado))?.full_name || 'Todos';
+        const nombreArchivo = `Devoluciones_${fechaDesde}_${fechaHasta}_${nombreUsuario.replace(/\s+/g, '_')}.xlsx`;
+
+        // Descargar archivo
+        XLSX.writeFile(wb, nombreArchivo);
+        showNotification('Archivo Excel de devoluciones exportado exitosamente', 'success');
+      }).catch(error => {
+        console.error('Error al cargar librería XLSX:', error);
+        showNotification('Error al exportar. Verifique que xlsx esté instalado.', 'error');
+      });
+    } catch (error) {
+      console.error('Error al exportar devoluciones a Excel:', error);
+      showNotification('Error al exportar datos a Excel', 'error');
+    }
+  };
+
+  // Función para exportar trazabilidad a Excel
+  const exportarTrazabilidadExcel = () => {
+    if (!trazabilidadData || !trazabilidadData.sims || trazabilidadData.sims.length === 0) {
+      showNotification('No hay datos de trazabilidad para exportar', 'error');
+      return;
+    }
+
+    try {
+      import('xlsx').then((XLSX) => {
+        // Preparar datos de SIMs
+        const simsData = trazabilidadData.sims.map(simData => ({
+          'ICCID': simData.sim.iccid,
+          'Número Línea': simData.sim.numero_linea || '',
+          'Operador': simData.sim.operador || '',
+          'Plan': simData.sim.plan_asignado || '',
+          'Estado': simData.sim.estado,
+          'Lote ID': simData.sim.lote_id || '',
+          'Fecha Registro': simData.sim.fecha_registro ? new Date(simData.sim.fecha_registro).toLocaleString('es-CO') : '',
+          'Vendida': simData.resumen.esta_vendida ? 'Sí' : 'No',
+          'Asesor Vendió': simData.venta?.usuario || '',
+          'Fecha Venta': simData.venta?.fecha ? new Date(simData.venta.fecha).toLocaleString('es-CO') : '',
+          'Tiene Devoluciones': simData.resumen.tiene_devoluciones ? 'Sí' : 'No',
+          'Total Eventos': simData.resumen.total_eventos
+        }));
+
+        // Preparar datos de eventos (cronología completa)
+        const eventosData = [];
+        trazabilidadData.sims.forEach(simData => {
+          simData.eventos.forEach(evento => {
+            eventosData.push({
+              'ICCID': simData.sim.iccid,
+              'Número Línea': simData.sim.numero_linea || '',
+              'Tipo Evento': evento.tipo,
+              'Descripción': evento.descripcion,
+              'Fecha': evento.fecha ? new Date(evento.fecha).toLocaleString('es-CO') : '',
+              'Usuario': evento.usuario || '',
+              'Motivo': evento.motivo || ''
+            });
+          });
+        });
+
+        // Preparar datos de ventas
+        const ventasData = trazabilidadData.sims
+          .filter(simData => simData.venta)
+          .map(simData => ({
+            'ICCID': simData.sim.iccid,
+            'Número Línea': simData.sim.numero_linea || '',
+            'ID Venta': simData.venta.id,
+            'Fecha Venta': simData.venta.fecha ? new Date(simData.venta.fecha).toLocaleString('es-CO') : '',
+            'Total': simData.venta.total,
+            'Método Pago': simData.venta.metodo_pago
+          }));
+
+        // Preparar datos de devoluciones
+        const devolucionesData = [];
+        trazabilidadData.sims.forEach(simData => {
+          if (simData.devoluciones) {
+            simData.devoluciones.forEach(dev => {
+              devolucionesData.push({
+                'ICCID': simData.sim.iccid,
+                'Número Línea': simData.sim.numero_linea || '',
+                'Tipo Devolución': dev.tipo,
+                'Fecha': dev.fecha ? new Date(dev.fecha).toLocaleString('es-CO') : '',
+                'Motivo': dev.motivo || '',
+                'Usuario': dev.usuario || '',
+                'SIM Reemplazo ICCID': dev.sim_reemplazo_iccid || '',
+                'SIM Reemplazo Número': dev.sim_reemplazo_numero || ''
+              });
+            });
+          }
+        });
+
+        // Crear libro de trabajo
+        const wb = XLSX.utils.book_new();
+
+        // Agregar hojas
+        const wsSims = XLSX.utils.json_to_sheet(simsData);
+        XLSX.utils.book_append_sheet(wb, wsSims, 'SIMs');
+
+        if (eventosData.length > 0) {
+          const wsEventos = XLSX.utils.json_to_sheet(eventosData);
+          XLSX.utils.book_append_sheet(wb, wsEventos, 'Eventos');
+        }
+
+        if (ventasData.length > 0) {
+          const wsVentas = XLSX.utils.json_to_sheet(ventasData);
+          XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas');
+        }
+
+        if (devolucionesData.length > 0) {
+          const wsDevoluciones = XLSX.utils.json_to_sheet(devolucionesData);
+          XLSX.utils.book_append_sheet(wb, wsDevoluciones, 'Devoluciones');
+        }
+
+        // Crear nombre de archivo
+        const filtros = [];
+        if (filtroIccid) filtros.push(`ICCID-${filtroIccid}`);
+        if (filtroNumeroLinea) filtros.push(`Linea-${filtroNumeroLinea}`);
+        if (filtroLoteId) filtros.push(`Lote-${filtroLoteId}`);
+        const filtrosStr = filtros.length > 0 ? filtros.join('_') : 'Todas';
+        const nombreArchivo = `Trazabilidad_${filtrosStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+        // Descargar archivo
+        XLSX.writeFile(wb, nombreArchivo);
+        showNotification('Archivo Excel de trazabilidad exportado exitosamente', 'success');
+      }).catch(error => {
+        console.error('Error al cargar librería XLSX:', error);
+        showNotification('Error al exportar. Verifique que xlsx esté instalado.', 'error');
+      });
+    } catch (error) {
+      console.error('Error al exportar trazabilidad a Excel:', error);
+      showNotification('Error al exportar datos a Excel', 'error');
+    }
+  };
+
   if (loading && !statsGeneral) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -407,7 +659,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-sm text-orange-700 mt-1 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
-                    Solo {alerta.disponibles} disponibles
+                    Solo {(alerta.disponibles || 0) + (alerta.recargadas || 0)} disponibles para vender
                   </div>
                 </div>
               ))}
@@ -831,6 +1083,17 @@ const Dashboard = () => {
 
     return (
       <div className="space-y-6">
+        {/* Botón de exportar */}
+        <div className="flex justify-end">
+          <Button
+            onClick={exportarVentasExcel}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-md flex items-center gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Exportar a Excel
+          </Button>
+        </div>
+
         {/* Resumen por método de pago */}
         <Card className="border-0 shadow-md">
           <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
@@ -1038,6 +1301,17 @@ const Dashboard = () => {
 
     return (
       <div className="space-y-6">
+        {/* Botón de exportar */}
+        <div className="flex justify-end">
+          <Button
+            onClick={exportarDevolucionesExcel}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-md flex items-center gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            Exportar a Excel
+          </Button>
+        </div>
+
         {/* Resumen de devoluciones */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="border-0 shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-localsim-teal-500 to-localsim-teal-600">
@@ -1228,6 +1502,14 @@ const Dashboard = () => {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Limpiar y Recargar
               </Button>
+              <Button
+                onClick={exportarTrazabilidadExcel}
+                disabled={!trazabilidadData || !trazabilidadData.sims || trazabilidadData.sims.length === 0}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-md flex items-center gap-2"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar a Excel
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1305,22 +1587,30 @@ const Dashboard = () => {
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                        simData.sim.estado === 'vendido'
-                          ? 'bg-green-100 text-green-800'
-                          : simData.sim.estado === 'available'
-                          ? 'bg-blue-100 text-blue-800'
-                          : simData.sim.estado === 'recargado'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {simData.sim.estado}
-                      </span>
-                      {simData.resumen.tiene_devoluciones && (
-                        <span className="px-3 py-1 text-xs bg-orange-100 text-orange-800 rounded-full font-medium">
-                          Con devoluciones
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 text-xs rounded-full font-medium ${
+                          simData.sim.estado === 'vendido'
+                            ? 'bg-green-100 text-green-800'
+                            : simData.sim.estado === 'available'
+                            ? 'bg-blue-100 text-blue-800'
+                            : simData.sim.estado === 'recargado'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {simData.sim.estado}
                         </span>
+                        {simData.resumen.tiene_devoluciones && (
+                          <span className="px-3 py-1 text-xs bg-orange-100 text-orange-800 rounded-full font-medium">
+                            Con devoluciones
+                          </span>
+                        )}
+                      </div>
+                      {simData.venta && simData.venta.usuario && (
+                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                          <Users className="h-3 w-3" />
+                          <span>Vendido por: <strong className="text-indigo-700">{simData.venta.usuario}</strong></span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1328,7 +1618,7 @@ const Dashboard = () => {
 
                 <CardContent className="pt-6">
                   {/* Resumen rápido */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
                       <Activity className="h-8 w-8 text-blue-600" />
                       <div>
@@ -1349,6 +1639,15 @@ const Dashboard = () => {
                         <p className="text-xs text-green-700 font-medium">Estado Venta</p>
                         <p className="text-xl font-bold text-green-900">
                           {simData.resumen.esta_vendida ? 'Vendida' : 'Disponible'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-localsim-teal-50 to-cyan-50 rounded-lg">
+                      <Users className="h-8 w-8 text-localsim-teal-600" />
+                      <div>
+                        <p className="text-xs text-localsim-teal-700 font-medium">Asesor</p>
+                        <p className="text-sm font-bold text-localsim-teal-900 truncate max-w-[120px]" title={simData.venta?.usuario || 'N/A'}>
+                          {simData.venta?.usuario || 'N/A'}
                         </p>
                       </div>
                     </div>

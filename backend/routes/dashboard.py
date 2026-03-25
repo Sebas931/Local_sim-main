@@ -280,7 +280,7 @@ async def get_inventario_metrics(
             "vendidas": int(row.vendidas),
             "recargadas": int(row.recargadas),
             "defectuosas": int(row.defectuosas),
-            "bajo_stock": int(row.disponibles) < 10  # Umbral de alerta
+            "bajo_stock": (int(row.disponibles) + int(row.recargadas)) < 10  # disponibles + recargadas
         }
         for row in result
     ]
