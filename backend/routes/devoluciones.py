@@ -24,44 +24,95 @@ async def buscar_ventas_por_iccid(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
-    """Buscar ventas que contengan una SIM específica por ICCID"""
+    """Buscar ventas por ICCID parcial o número de teléfono"""
     try:
-        # Buscar la SIM por ICCID
-        sim_query = select(SimDetalle).where(SimDetalle.iccid == iccid)
-        result = await db.execute(sim_query)
-        sim = result.scalar_one_or_none()
+        if not iccid or len(iccid) < 3:
+            return []
 
-        if not sim:
+        # Buscar SIMs que coincidan con ICCID parcial o número de línea
+        sim_query = select(SimDetalle).where(
+            or_(
+                SimDetalle.iccid.ilike(f"%{iccid}%"),
+                SimDetalle.numero_linea.ilike(f"%{iccid}%")
+            )
+        ).limit(20)
+        result = await db.execute(sim_query)
+        sims = result.scalars().all()
+
+        if not sims:
             return []
 
         ventas_encontradas = []
+        seen_sale_ids = set()
 
-        # Si hay venta_id en la SIM, usarla directamente
-        if sim.venta_id:
-            try:
-                # Intentar convertir a UUID si es posible
-                if isinstance(sim.venta_id, str):
-                    venta_uuid = UUID(sim.venta_id)
-                else:
-                    venta_uuid = sim.venta_id
+        for sim in sims:
+            # Si hay venta_id en la SIM, usarla directamente
+            if sim.venta_id:
+                try:
+                    if isinstance(sim.venta_id, str):
+                        venta_uuid = UUID(sim.venta_id)
+                    else:
+                        venta_uuid = sim.venta_id
 
-                # Buscar la venta específica
-                sale_query = select(Sale).options(
-                    selectinload(Sale.items),
-                    selectinload(Sale.user)
-                ).where(
-                    and_(
-                        Sale.id == venta_uuid,
-                        Sale.estado == 'activa'
+                    sale_query = select(Sale).options(
+                        selectinload(Sale.items),
+                        selectinload(Sale.user)
+                    ).where(
+                        and_(
+                            Sale.id == venta_uuid,
+                            Sale.estado == 'activa'
+                        )
                     )
+
+                    result = await db.execute(sale_query)
+                    sale = result.scalar_one_or_none()
+
+                    if sale and str(sale.id) not in seen_sale_ids:
+                        seen_sale_ids.add(str(sale.id))
+                        ventas_encontradas.append({
+                            "sale_id": str(sale.id),
+                            "iccid": sim.iccid,
+                            "numero_linea": sim.numero_linea,
+                            "customer_id": sale.customer_id,
+                            "customer_identification": sale.customer_identification,
+                            "payment_method": sale.payment_method,
+                            "total": float(sale.total),
+                            "created_at": sale.created_at.isoformat(),
+                            "user_name": sale.user.full_name or sale.user.username if sale.user else None,
+                            "items": [
+                                {
+                                    "description": item.description,
+                                    "quantity": item.quantity,
+                                    "unit_price": float(item.unit_price)
+                                }
+                                for item in sale.items
+                            ]
+                        })
+                    continue
+                except (ValueError, TypeError) as e:
+                    print(f"Error converting venta_id to UUID: {e}")
+
+            # Buscar por descripción en items de venta (fallback)
+            sales_query = select(Sale).options(
+                selectinload(Sale.items),
+                selectinload(Sale.user)
+            ).join(SaleItem).where(
+                and_(
+                    Sale.estado == 'activa',
+                    SaleItem.description.ilike(f"%{sim.iccid}%")
                 )
+            )
 
-                result = await db.execute(sale_query)
-                sale = result.scalar_one_or_none()
+            result = await db.execute(sales_query)
+            sales = result.scalars().unique().all()
 
-                if sale:
+            for sale in sales:
+                if str(sale.id) not in seen_sale_ids:
+                    seen_sale_ids.add(str(sale.id))
                     ventas_encontradas.append({
                         "sale_id": str(sale.id),
+                        "iccid": sim.iccid,
+                        "numero_linea": sim.numero_linea,
                         "customer_id": sale.customer_id,
                         "customer_identification": sale.customer_identification,
                         "payment_method": sale.payment_method,
@@ -77,43 +128,6 @@ async def buscar_ventas_por_iccid(
                             for item in sale.items
                         ]
                     })
-                    return ventas_encontradas
-            except (ValueError, TypeError) as e:
-                print(f"Error converting venta_id to UUID: {e}")
-                # Si no se puede convertir UUID, continuar con búsqueda por descripción
-
-        # Buscar por descripción en items de venta
-        sales_query = select(Sale).options(
-            selectinload(Sale.items),
-            selectinload(Sale.user)
-        ).join(SaleItem).where(
-            and_(
-                Sale.estado == 'activa',  # Solo ventas activas
-                SaleItem.description.ilike(f"%{iccid}%")
-            )
-        )
-
-        result = await db.execute(sales_query)
-        sales = result.scalars().unique().all()
-
-        for sale in sales:
-            ventas_encontradas.append({
-                "sale_id": str(sale.id),
-                "customer_id": sale.customer_id,
-                "customer_identification": sale.customer_identification,
-                "payment_method": sale.payment_method,
-                "total": float(sale.total),
-                "created_at": sale.created_at.isoformat(),
-                "user_name": sale.user.full_name or sale.user.username if sale.user else None,
-                "items": [
-                    {
-                        "description": item.description,
-                        "quantity": item.quantity,
-                        "unit_price": float(item.unit_price)
-                    }
-                    for item in sale.items
-                ]
-            })
 
         return ventas_encontradas
 

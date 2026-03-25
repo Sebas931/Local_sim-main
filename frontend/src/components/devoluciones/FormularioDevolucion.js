@@ -205,10 +205,6 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
         showNotification('Debe seleccionar una venta', 'error');
         return;
       }
-      if (!searchVenta) {
-        showNotification('Debe especificar el ICCID de la SIM a devolver', 'error');
-        return;
-      }
       if (!montoDevuelto || parseFloat(montoDevuelto) <= 0) {
         showNotification('Debe especificar un monto válido a devolver', 'error');
         return;
@@ -217,7 +213,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
       devolucionData = {
         ...devolucionData,
         sale_id: ventaSeleccionada.sale_id,
-        sim_defectuosa_iccid: searchVenta,
+        sim_defectuosa_iccid: ventaSeleccionada.iccid,
         monto_devuelto: parseFloat(montoDevuelto),
         metodo_devolucion: metodoDevolucion
       };
@@ -367,14 +363,14 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Search className="w-5 h-5 text-localsim-teal-500" />
-                Buscar Venta por ICCID
+                Buscar Venta
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <Input
-                  placeholder="Ingresa el ICCID de la SIM a devolver..."
+                  placeholder="Buscar por ICCID o número de teléfono..."
                   value={searchVenta}
                   onChange={(e) => setSearchVenta(e.target.value)}
                   className="pl-9"
@@ -422,7 +418,7 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
                     </div>
                   ) : ventasEncontradas.length === 0 ? (
                     <p className="text-center text-gray-500 py-4">
-                      {searchVenta.length >= 3 ? 'No se encontraron ventas con este ICCID' : 'Escribe al menos 3 caracteres para buscar'}
+                      {searchVenta.length >= 3 ? 'No se encontraron ventas' : 'Escribe al menos 3 caracteres para buscar'}
                     </p>
                   ) : (
                     ventasEncontradas.map((venta, index) => (
@@ -432,6 +428,12 @@ const FormularioDevolucion = ({ onCancel, onSuccess }) => {
                         onClick={() => setVentaSeleccionada(venta)}
                       >
                         <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="font-medium">ICCID:</span> {venta.iccid}
+                          </div>
+                          <div>
+                            <span className="font-medium">Teléfono:</span> {venta.numero_linea || '—'}
+                          </div>
                           <div>
                             <span className="font-medium">Cliente:</span> {venta.customer_identification}
                           </div>
