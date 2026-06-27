@@ -21,9 +21,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@loc
 PLANES = [
     # (winred_product_id, operador, nombre_winred, siigo_code, activo)
     ("1067", "CLARO", "RECARGA / 5 DIAS / CLARO", "R5D", True),
+    ("1344",  "CLARO", "RECARGA / 10 DIAS / CLARO", "R10D", True),
     ("1163", "CLARO", "RECARGA / 7 DIAS / CLARO", "R7D", True),
-    ("1188", "CLARO", "RECARGA / 15 DIAS / CLARO", "R15D", True),
-    ("1189", "CLARO", "RECARGA / 30 DIAS / CLARO", "R30D", True),
+    ("1351",  "CLARO", "RECARGA / 20 DIAS / CLARO", "R20D", True),
+    ("1350", "CLARO", "RECARGA / 15 DIAS / CLARO", "R15D", True),
+    ("1353", "CLARO", "RECARGA / 30 DIAS / CLARO", "R30D", True),
 ]
 
 

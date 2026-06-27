@@ -32,7 +32,7 @@ WINRED_PROBE_SUBSCRIBER = os.getenv("WINRED_PROBE_SUBSCRIBER", "")
 
 # IDs permitidos para mostrar en UI (ajusta en .env si quieres)
 WINRED_ALLOWED_IDS = set(
-    s.strip() for s in os.getenv("WINRED_ALLOWED_IDS", "1163,1188,1189,1067").split(",") if s.strip()
+    s.strip() for s in os.getenv("WINRED_ALLOWED_IDS", "1067,1344,1163,1351,1350,1353").split(",") if s.strip()
 )
 
 # ====== HELPERS ======
@@ -65,9 +65,11 @@ def _filter_allowed_packages_in_resp(resp: dict) -> dict:
     # Mapeo de product_id a nombre alternativo (sin precios)
     PACKAGE_NAME_MAPPING = {
         "1067": "5 Días -- 4GB",      # DATOS Y REDES -- $4.500,00 [7 DÍAS]
+        "1344":  "10 Días -- 7GB",     # CLARO
         "1163": "7 Días -- 20GB",     # ILIMITADO -- $12.000,00 [7 DÍAS]
-        "1188": "15 Días -- 40GB",    # ILIMITADO -- $22.000,00 [15 DÍAS]
-        "1189": "30 Días -- 60GB",    # ILIMITADO -- $32.000,00 [30 DÍAS]
+        "1351":  "20 Días -- 15GB",    # CLARO
+        "1350": "15 Días -- 40GB",    # ILIMITADO -- $22.000,00 [15 DÍAS]  (antes 1188)
+        "1353": "30 Días -- 60GB",    # ILIMITADO -- $32.000,00 [30 DÍAS]  (antes 1189)
     }
 
     try:
