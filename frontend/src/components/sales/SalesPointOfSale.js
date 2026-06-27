@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ShoppingCart, Search, Plus, Minus, X, Scan, DollarSign, Package, CreditCard, Receipt } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, X, Scan, DollarSign, Package, CreditCard, Receipt, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -11,6 +11,12 @@ import { salesService } from '../../services/salesService';
 import { productsService } from '../../services/productsService';
 import { simsService } from '../../services/simsService';
 import { useApp } from '../../context/AppContext';
+
+// Códigos de productos de recarga que requieren nombre de cliente
+const RECHARGE_PRODUCT_CODES = ['R5D', 'R7D', 'R15D', 'R30D'];
+
+// Códigos de SIM física (la tarjeta que se factura). S01 = SIM anterior, S02 = SIM WOM
+const SIM_FISICA_CODES = ['S01', 'S02'];
 
 const SalesPointOfSale = () => {
   const { showNotification, turnoAbierto } = useApp();
@@ -30,8 +36,13 @@ const SalesPointOfSale = () => {
   const [selectedPlan, setSelectedPlan] = useState('');
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState('electronic');
+  const [paymentMethod, setPaymentMethod] = useState('electronic');  // Datáfono/Electrónico por defecto
   const [loading, setLoading] = useState(false);
+
+  // Modal para número de celular en recargas
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneForRecharge, setPhoneForRecharge] = useState('');
+  const [pendingRechargeProduct, setPendingRechargeProduct] = useState(null);
 
   // Referencias
   const barcodeInputRef = useRef(null);
@@ -66,6 +77,18 @@ const SalesPointOfSale = () => {
     return (products || []).find(p =>
       String(p.code).trim().toUpperCase() === String(code || "").trim().toUpperCase()
     ) || null;
+  };
+
+  // Busca el producto de SIM física disponible (S01 o S02)
+  const findSimProduct = () => {
+    return (products || []).find(p =>
+      SIM_FISICA_CODES.includes(String(p.code).trim().toUpperCase())
+    ) || null;
+  };
+
+  // Verificar si un producto es una recarga (requiere nombre de cliente)
+  const isRechargeProduct = (productCode) => {
+    return RECHARGE_PRODUCT_CODES.includes(String(productCode || '').toUpperCase());
   };
 
   const findSimByIccid = (iccid) => {
@@ -110,10 +133,10 @@ const SalesPointOfSale = () => {
         // Agregar automáticamente SIM + Plan al carrito
         console.log('Agregando SIM y plan automáticamente');
 
-        // 1) Producto físico S01 (SIM)
-        const simProd = findProductByCode('S01');
+        // 1) Producto físico de SIM (S01 o S02)
+        const simProd = findSimProduct();
         if (!simProd) {
-          showNotification('No encontré el producto S01 en la lista de productos', 'error');
+          showNotification('No encontré el producto de SIM física (S01/S02) en la lista de productos', 'error');
           return currentCart;
         }
 
@@ -377,10 +400,10 @@ const SalesPointOfSale = () => {
       return;
     }
 
-    // 1) Producto físico S01
-    const simProd = findProductByCode('S01');
+    // 1) Producto físico de SIM (S01 o S02)
+    const simProd = findSimProduct();
     if (!simProd) {
-      showNotification('No encontré el producto S01 en la lista de productos', 'error');
+      showNotification('No encontré el producto de SIM física (S01/S02) en la lista de productos', 'error');
       return;
     }
 
@@ -435,6 +458,14 @@ const SalesPointOfSale = () => {
   const addToCart = () => {
     if (!selectedProduct) return;
 
+    // Si es un producto de recarga, mostrar modal para número de celular
+    if (isRechargeProduct(selectedProduct.code)) {
+      setPendingRechargeProduct(selectedProduct);
+      setPhoneForRecharge('');
+      setShowPhoneModal(true);
+      return;
+    }
+
     const priceData = getProductPrice(selectedProduct, paymentMethod);
 
     const item = {
@@ -449,6 +480,34 @@ const SalesPointOfSale = () => {
     };
 
     addItemsToCart([item]);
+    setSelectedProduct(null);
+    setQuantity(1);
+  };
+
+  // Agregar recarga con número de celular
+  const addRechargeWithPhone = () => {
+    if (!pendingRechargeProduct) return;
+
+    const priceData = getProductPrice(pendingRechargeProduct, paymentMethod);
+
+    const item = {
+      product_id: pendingRechargeProduct.id,
+      product_name: pendingRechargeProduct.name,
+      product_code: pendingRechargeProduct.code,
+      quantity: quantity,
+      unit_price: priceData.price,
+      currency: priceData.currency,
+      taxes: pendingRechargeProduct.taxes || [],
+      tax_included: pendingRechargeProduct.tax_included,
+      recharge_phone: phoneForRecharge.trim() || null, // Número de celular para la recarga
+    };
+
+    addItemsToCart([item]);
+
+    // Limpiar estados
+    setShowPhoneModal(false);
+    setPendingRechargeProduct(null);
+    setPhoneForRecharge('');
     setSelectedProduct(null);
     setQuantity(1);
   };
@@ -499,10 +558,15 @@ const SalesPointOfSale = () => {
           product_code: item.product_code,
           quantity: Number(item.quantity),
           unit_price: item.unit_price,
-          description: item.product_name,
+          description: item.recharge_phone
+            ? `${item.product_name} - Cel: ${item.recharge_phone}`
+            : item.product_name,
           sim_id: item.sim_id,
+          msisdn: item.msisdn || item.sim_number,  // Número de línea
+          iccid: item.iccid,  // ICCID de la SIM
           selected_plan: item.selected_plan,
-          taxes: item.taxes || []
+          taxes: item.taxes || [],
+          recharge_phone: item.recharge_phone || null  // Número de celular para recargas
         })),
         payment_method: paymentMethod,
         customer_id: "38165ed3-4562-45f6-8c59-78867af1989b",
@@ -516,6 +580,7 @@ const SalesPointOfSale = () => {
         formatPrice(totals.totalUSD, 'USD') :
         formatPrice(totals.totalCOP, 'COP');
 
+      // Mostrar notificación según método de pago
       if (paymentMethod === "electronic") {
         showNotification(
           `Factura electrónica creada exitosamente. Total: ${displayTotal}`,
@@ -523,12 +588,12 @@ const SalesPointOfSale = () => {
         );
       } else if (paymentMethod === "dollars") {
         showNotification(
-          `Venta en dólares registrada correctamente. Total: ${displayTotal}. ID: ${result?.venta_id || 'N/A'}`,
+          `Venta en dólares registrada correctamente. Total: ${displayTotal}`,
           'success'
         );
       } else {
         showNotification(
-          `Venta en efectivo registrada correctamente. Total: ${displayTotal}. ID: ${result?.venta_id || 'N/A'}`,
+          `Venta en efectivo registrada correctamente. Total: ${displayTotal}`,
           'success'
         );
       }
@@ -551,6 +616,7 @@ const SalesPointOfSale = () => {
   // Precios en dólares para productos específicos
   const dollarPrices = {
     'S01': 3.00,    // Sim Card -Fisica
+    'S02': 3.00,    // Sim WOM - Fisica
     'R7D': 8.99,    // RECARGA / 7 Dias / Claro
     'R15D': 13.99,  // RECARGA / 15 Dias / Claro
     'R5D': 4.99,    // RECARGA / 5 Dias / Claro
@@ -746,58 +812,60 @@ const SalesPointOfSale = () => {
             </CardContent>
           </Card>
 
-          {/* Selector rápido de SIMs disponibles */}
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b">
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Receipt className="h-5 w-5" />
-                Seleccionar SIM Disponible
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="md:col-span-2">
-                <Label className="text-gray-700 font-medium">SIM disponible</Label>
-                <select
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-localsim-teal-200 bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-localsim-teal-500 focus:border-localsim-teal-500 mt-1"
-                  value={selectedSim ? String(selectedSim.id) : ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (!val) {
-                      setSelectedSim(null);
-                      return;
-                    }
-                    const sim = (sims || []).find(s => String(s.id) === String(val)) || null;
-                    setSelectedSim(sim);
-                    if (sim?.plan_asignado) setSelectedPlan(sim.plan_asignado);
-                  }}
-                >
-                  <option value="">Elegir una SIM disponible</option>
-                  {(sims || []).map((sim) => (
-                    <option
-                      key={String(sim.id)}
-                      value={String(sim.id)}
-                    >
-                      {`${sim.lote_id || "Sin lote"} - ${sim.numero_linea || sim.number || "—"} - ICCID: ${sim.iccid} - Plan: ${sim.plan_asignado || "—"}`}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  * El plan se toma del campo <b>plan_asignado</b> de la SIM (código Siigo, ej. R7D).
-                </p>
-              </div>
+          {/* Selector rápido de SIMs disponibles - Solo visible cuando se selecciona una SIM física (S01/S02) */}
+          {selectedProduct && SIM_FISICA_CODES.includes(String(selectedProduct.code).trim().toUpperCase()) && (
+            <Card className="shadow-lg border-0">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b">
+                <CardTitle className="flex items-center gap-2 text-blue-700">
+                  <Receipt className="h-5 w-5" />
+                  Seleccionar SIM Disponible
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div className="md:col-span-2">
+                  <Label className="text-gray-700 font-medium">SIM disponible</Label>
+                  <select
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-localsim-teal-200 bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-localsim-teal-500 focus:border-localsim-teal-500 mt-1"
+                    value={selectedSim ? String(selectedSim.id) : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        setSelectedSim(null);
+                        return;
+                      }
+                      const sim = (sims || []).find(s => String(s.id) === String(val)) || null;
+                      setSelectedSim(sim);
+                      if (sim?.plan_asignado) setSelectedPlan(sim.plan_asignado);
+                    }}
+                  >
+                    <option value="">Elegir una SIM disponible</option>
+                    {(sims || []).map((sim) => (
+                      <option
+                        key={String(sim.id)}
+                        value={String(sim.id)}
+                      >
+                        {`${sim.lote_id || "Sin lote"} - ${sim.numero_linea || sim.number || "—"} - ICCID: ${sim.iccid} - Plan: ${sim.plan_asignado || "—"}`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    * El plan se toma del campo <b>plan_asignado</b> de la SIM (código Siigo, ej. R7D).
+                  </p>
+                </div>
 
-              <div className="md:col-span-1 flex justify-end">
-                <Button
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
-                  disabled={!selectedSim}
-                  onClick={() => selectedSim && addSimAndPlanToCart()}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar SIM + Plan
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="md:col-span-1 flex justify-end">
+                  <Button
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
+                    disabled={!selectedSim}
+                    onClick={() => selectedSim && addSimAndPlanToCart()}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Agregar SIM + Plan
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Add to Cart */}
           {selectedProduct && (
@@ -880,6 +948,12 @@ const SalesPointOfSale = () => {
                             )}
                             {item.selected_plan && (
                               <p className="text-xs text-green-600 font-medium">Plan: {item.selected_plan}</p>
+                            )}
+                            {item.recharge_phone && (
+                              <p className="text-xs text-purple-600 font-medium flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                Celular: {item.recharge_phone}
+                              </p>
                             )}
                           </div>
                           <Button
@@ -1006,6 +1080,71 @@ const SalesPointOfSale = () => {
           </Card>
         </div>
       </div>
+
+      {/* Modal para número de celular en recargas */}
+      <Dialog open={showPhoneModal} onOpenChange={setShowPhoneModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-purple-700">
+              <User className="h-5 w-5" />
+              Número de Celular para Recarga
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {pendingRechargeProduct && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-purple-800">
+                  Producto: {pendingRechargeProduct.name}
+                </p>
+                <p className="text-sm text-purple-600">
+                  Precio: {formatPrice(getProductPrice(pendingRechargeProduct, paymentMethod).price, getProductPrice(pendingRechargeProduct, paymentMethod).currency)}
+                </p>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="recharge-phone" className="text-gray-700 font-medium">
+                Número de celular (opcional)
+              </Label>
+              <Input
+                id="recharge-phone"
+                type="tel"
+                placeholder="Ej: 3001234567"
+                value={phoneForRecharge}
+                onChange={(e) => setPhoneForRecharge(e.target.value)}
+                className="mt-1 border-purple-200 focus:border-purple-500 text-lg font-mono"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addRechargeWithPhone();
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Este número se guardará junto con la venta de la recarga.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowPhoneModal(false);
+                  setPendingRechargeProduct(null);
+                  setPhoneForRecharge('');
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={addRechargeWithPhone}
+                className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Agregar al Carrito
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

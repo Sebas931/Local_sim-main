@@ -59,7 +59,7 @@ class SiigoClient:
             "Partner-Id": SIIGO_PARTNER_ID
         }
 
-        codigos_permitidos = ['S01', 'ESIM', 'HT01', 'R30D', 'R15D', 'R7D', 'R5D', 'MAPAV1']  # MAPAV1 = RECARGA MAPA V1
+        codigos_permitidos = ['S01', 'S02', 'ESIM', 'HT01', 'R30D', 'R15D', 'R7D', 'R5D', 'MAPAV1']  # S02 = SIM WOM, MAPAV1 = RECARGA MAPA V1
         all_products = []
         page = 1
         page_size = 200  # Verifica el máximo permitido por la API

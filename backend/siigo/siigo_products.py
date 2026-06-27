@@ -45,7 +45,7 @@ async def fetch_filtered_products():
             data = await response.json()
             results = data.get("results", []) if isinstance(data, dict) else data
 
-            codigos_permitidos = ['S01', 'ESIM', 'HT01', 'R30D', 'R15D', 'R7D']
+            codigos_permitidos = ['S01', 'S02', 'ESIM', 'HT01', 'R30D', 'R15D', 'R7D']
             productos = []
 
             for p in results:
